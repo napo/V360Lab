@@ -8,7 +8,14 @@ export function featureLabel(lookup: Lookup, feature: Pick<CameraFeature, "key" 
   return lookup(`feature.${feature.key}`) ?? feature.label ?? feature.key;
 }
 
-/** Human label for a feature option value; falls back to the raw value. */
+/**
+ * Human label for a feature option value; falls back to the raw value.
+ * Plain numbers get the feature's unit when one is defined (`unit.<key>`),
+ * e.g. the self-timer's "10" becomes "10 s".
+ */
 export function optionLabel(lookup: Lookup, featureKey: string, value: string): string {
-  return lookup(`option.${featureKey}.${value}`) ?? value;
+  const translated = lookup(`option.${featureKey}.${value}`);
+  if (translated !== null) return translated;
+  if (/^\d+$/.test(value)) return lookup(`unit.${featureKey}`, { value }) ?? value;
+  return value;
 }
