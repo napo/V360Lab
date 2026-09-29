@@ -220,9 +220,9 @@ impl CameraClient for GarminVirb360Client {
         Ok(list)
     }
 
-    async fn delete_file(&self, media_url: &str) -> Result<CommandAck, CameraError> {
+    async fn delete_files(&self, media_urls: &[String]) -> Result<CommandAck, CameraError> {
         self.acknowledge(VirbCommand::DeleteFile {
-            file: media_url.to_string(),
+            files: media_urls.to_vec(),
         })
         .await
     }

@@ -313,7 +313,9 @@ async fn delete_and_stop_still_recording_send_expected_payloads() {
     let url = "http://192.168.0.1:80/DCIM/100_VIRB/V0010001.MP4";
     Mock::given(method("POST"))
         .and(path("/virb"))
-        .and(body_json(json!({ "command": "deleteFile", "file": url })))
+        .and(body_json(
+            json!({ "command": "deleteFile", "files": [url] }),
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "result": 1 })))
         .expect(1)
         .mount(&server)
@@ -326,7 +328,11 @@ async fn delete_and_stop_still_recording_send_expected_payloads() {
     .await;
     let client = client_for(&server);
     // The URL is sent exactly as reported, not re-anchored.
-    assert_eq!(client.delete_file(url).await.unwrap().command, "deleteFile");
+    let files = [url.to_string()];
+    assert_eq!(
+        client.delete_files(&files).await.unwrap().command,
+        "deleteFile"
+    );
     assert_eq!(
         client.stop_still_recording().await.unwrap().command,
         "stopStillRecording"

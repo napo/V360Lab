@@ -21,10 +21,13 @@ pub enum VirbCommand {
         feature: String,
         value: String,
     },
-    /// `file` is the media URL exactly as reported by `mediaList`.
-    /// Firmware 4.20 answers `"result": 1` even for files that do not exist.
+    /// `files` are media URLs exactly as reported by `mediaList`.
+    /// Firmware 4.20 only deletes with a `files` array: a single `file`
+    /// string (or any other key) is acknowledged with `"result": 1` but
+    /// ignored. Deleting a video also removes its `.GLV` and `.THM`, but
+    /// not its FIT file.
     DeleteFile {
-        file: String,
+        files: Vec<String>,
     },
 }
 
@@ -53,7 +56,7 @@ impl VirbCommand {
                 "feature": feature,
                 "value": value,
             }),
-            Self::DeleteFile { file } => json!({ "command": self.name(), "file": file }),
+            Self::DeleteFile { files } => json!({ "command": self.name(), "files": files }),
             _ => json!({ "command": self.name() }),
         }
     }
@@ -83,10 +86,10 @@ mod tests {
             json!({ "command": "updateFeature", "feature": "shootingMode", "value": "photoShootingMode" })
         );
         let delete = VirbCommand::DeleteFile {
-            file: "http://192.168.0.1:80/DCIM/100_VIRB/V0010001.MP4".into(),
+            files: vec!["http://192.168.0.1:80/DCIM/100_VIRB/V0010001.MP4".into()],
         };
         assert_eq!(
-            delete.payload()["file"],
+            delete.payload()["files"][0],
             "http://192.168.0.1:80/DCIM/100_VIRB/V0010001.MP4"
         );
     }

@@ -302,6 +302,7 @@ export const en = {
   "errors.transfer": "The transfer from the camera was interrupted.",
   "errors.filesystem": "Could not access {path}.",
   "errors.notConnected": "No camera is connected.",
+  "errors.notDeleted": "The camera acknowledged the deletion, but \"{name}\" is still there.",
   "errors.notACamera": "The device at {address} does not respond like a Garmin VIRB camera.",
   "errors.missingResource.downloadUrl": "\"{name}\" has no download URL on the camera.",
   "errors.missingResource.fitFile": "\"{name}\" has no FIT telemetry file on the camera.",

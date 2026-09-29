@@ -302,6 +302,7 @@ export const it: Dictionary = {
   "errors.transfer": "Il trasferimento dalla camera si è interrotto.",
   "errors.filesystem": "Impossibile accedere a {path}.",
   "errors.notConnected": "Nessuna camera connessa.",
+  "errors.notDeleted": "La camera ha confermato l'eliminazione, ma \"{name}\" è ancora presente.",
   "errors.notACamera": "Il dispositivo all'indirizzo {address} non risponde come una camera Garmin VIRB.",
   "errors.missingResource.downloadUrl": "\"{name}\" non ha un URL di download sulla camera.",
   "errors.missingResource.fitFile": "\"{name}\" non ha un file di telemetria FIT sulla camera.",

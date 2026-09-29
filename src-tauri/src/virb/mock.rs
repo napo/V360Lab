@@ -228,10 +228,13 @@ impl CameraClient for MockVirb360Client {
         ))
     }
 
-    async fn delete_file(&self, media_url: &str) -> Result<CommandAck, CameraError> {
+    async fn delete_files(&self, media_urls: &[String]) -> Result<CommandAck, CameraError> {
         self.simulate_latency().await;
-        // Like firmware 4.20: success even when the file does not exist.
-        self.with_state(|s| s.media.retain(|m| m["url"] != media_url));
+        // Like firmware 4.20: success even when a file does not exist.
+        self.with_state(|s| {
+            s.media
+                .retain(|m| !media_urls.iter().any(|url| m["url"] == url.as_str()))
+        });
         Ok(models::command_ack("deleteFile", json!({ "result": 1 })))
     }
 
@@ -430,14 +433,15 @@ mod tests {
     async fn deletes_files() {
         let mock = client();
         let first = mock.media_list().await.unwrap().remove(0);
-        mock.delete_file(first.url.as_deref().unwrap())
+        mock.delete_files(&[first.url.clone().unwrap()])
             .await
             .unwrap();
         let media = mock.media_list().await.unwrap();
         assert_eq!(media.len(), 5);
         assert!(media.iter().all(|m| m.id != first.id));
         // Unknown files are "deleted" successfully, as on the real camera.
-        assert!(mock.delete_file("mock://virb360/nope.MP4").await.is_ok());
+        let unknown = ["mock://virb360/nope.MP4".to_string()];
+        assert!(mock.delete_files(&unknown).await.is_ok());
     }
 
     #[tokio::test]

@@ -23,28 +23,51 @@ pub struct DeleteReport {
     pub verified: bool,
 }
 
-/// Deletes media items on the camera, then re-reads the media list to
-/// confirm: firmware 4.20 acknowledges `deleteFile` even for files that do
-/// not exist, so the acknowledgement alone proves nothing.
+/// Deletes media items on the camera with a single request, then re-reads
+/// the media list to confirm: firmware 4.20 acknowledges `deleteFile` even
+/// when nothing was deleted, so the acknowledgement alone proves nothing.
 pub async fn delete_media(client: &dyn CameraClient, items: &[MediaItem]) -> DeleteReport {
-    let mut requested = Vec::new();
     let mut failed = Vec::new();
-
+    let mut requested = Vec::new();
     for item in items {
-        let result = match item.url.as_deref() {
-            Some(url) => client.delete_file(url).await.map_err(AppError::from),
-            None => Err(AppError::MissingResource {
+        if item.url.is_some() {
+            requested.push(item);
+        } else {
+            let error = AppError::MissingResource {
                 name: item.name.clone(),
                 resource: Resource::DownloadUrl,
-            }),
-        };
-        match result {
-            Ok(_) => {
-                log::info!("Deleted {} on the camera", item.name);
-                requested.push(item);
-            }
-            Err(error) => failed.push(failure(item, error)),
+            };
+            failed.push(failure(item, error));
         }
+    }
+    if requested.is_empty() {
+        return DeleteReport {
+            deleted: Vec::new(),
+            failed,
+            verified: true,
+        };
+    }
+
+    let urls: Vec<String> = requested.iter().filter_map(|i| i.url.clone()).collect();
+    if let Err(e) = client.delete_files(&urls).await {
+        // One request covers all items, so they share the same failure.
+        log::warn!("deleteFile failed: {e}");
+        let response = format!(
+            "{e}{}",
+            e.detail().map(|d| format!(": {d}")).unwrap_or_default()
+        );
+        for item in requested {
+            let error = CameraError::CommandFailed {
+                command: "deleteFile".into(),
+                response: response.clone(),
+            };
+            failed.push(failure(item, error.into()));
+        }
+        return DeleteReport {
+            deleted: Vec::new(),
+            failed,
+            verified: true,
+        };
     }
 
     let (deleted, verified) = match client.media_list().await {
@@ -52,12 +75,12 @@ pub async fn delete_media(client: &dyn CameraClient, items: &[MediaItem]) -> Del
             let mut deleted = Vec::new();
             for item in requested {
                 if remaining.iter().any(|m| m.id == item.id) {
-                    let error = CameraError::CommandFailed {
-                        command: "deleteFile".into(),
-                        response: "the file is still listed after deletion".into(),
+                    let error = AppError::NotDeleted {
+                        name: item.name.clone(),
                     };
-                    failed.push(failure(item, error.into()));
+                    failed.push(failure(item, error));
                 } else {
+                    log::info!("Deleted {} on the camera", item.name);
                     deleted.push(item.id.clone());
                 }
             }
@@ -116,7 +139,7 @@ mod tests {
         );
         assert_eq!(report.failed.len(), 2);
         let kinds: Vec<&str> = report.failed.iter().map(|f| f.error.kind()).collect();
-        assert!(kinds.contains(&"commandFailed"));
+        assert!(kinds.contains(&"notDeleted"));
         assert!(kinds.contains(&"missingResource"));
         assert_eq!(camera.media_list().await.unwrap().len(), 4);
     }

@@ -33,6 +33,10 @@ pub enum AppError {
     #[error("\"{name}\" has no {resource} available on the camera")]
     MissingResource { name: String, resource: Resource },
 
+    /// The camera acknowledged a deletion but still lists the file.
+    #[error("The camera acknowledged the deletion, but \"{name}\" is still there")]
+    NotDeleted { name: String },
+
     #[error("Could not access {}", path.display())]
     Filesystem {
         path: PathBuf,
@@ -79,6 +83,7 @@ impl AppError {
             Self::NotConnected => "notConnected",
             Self::NotACamera { .. } => "notACamera",
             Self::MissingResource { .. } => "missingResource",
+            Self::NotDeleted { .. } => "notDeleted",
             Self::Filesystem { .. } => "filesystem",
             Self::Settings { .. } => "settings",
         }
@@ -95,6 +100,9 @@ impl AppError {
             Self::MissingResource { name, resource } => {
                 params.insert("name".into(), name.as_str().into());
                 params.insert("resource".into(), resource.code().into());
+            }
+            Self::NotDeleted { name } => {
+                params.insert("name".into(), name.as_str().into());
             }
             Self::Filesystem { path, .. } => {
                 params.insert("path".into(), path.display().to_string().into());

@@ -40,10 +40,10 @@ pub trait CameraClient: Send + Sync {
     /// Sets a camera feature and returns the updated feature list.
     /// Fails if the camera does not report the requested value afterwards.
     async fn update_feature(&self, key: &str, value: &str) -> Result<FeatureList, CameraError>;
-    /// Deletes a file on the camera. `media_url` is the URL exactly as
-    /// reported by the media list. A success response does not guarantee
-    /// the file existed; callers should verify with the media list.
-    async fn delete_file(&self, media_url: &str) -> Result<CommandAck, CameraError>;
+    /// Deletes files on the camera in one request. `media_urls` are URLs
+    /// exactly as reported by the media list. A success response does not
+    /// guarantee anything was deleted; callers verify with the media list.
+    async fn delete_files(&self, media_urls: &[String]) -> Result<CommandAck, CameraError>;
     async fn media_list(&self) -> Result<Vec<MediaItem>, CameraError>;
 
     /// Fetches a small resource (e.g. a thumbnail) into memory.
