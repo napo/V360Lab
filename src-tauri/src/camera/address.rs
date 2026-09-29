@@ -99,9 +99,19 @@ mod tests {
 
     #[test]
     fn rejects_invalid_addresses() {
-        for bad in ["", "   ", "ftp://1.2.3.4", "1.2.3.4/virb", "http://u:p@1.2.3.4", "http://"] {
+        for bad in [
+            "",
+            "   ",
+            "ftp://1.2.3.4",
+            "1.2.3.4/virb",
+            "http://u:p@1.2.3.4",
+            "http://",
+        ] {
             assert!(
-                matches!(normalize_address(bad), Err(CameraError::InvalidAddress { .. })),
+                matches!(
+                    normalize_address(bad),
+                    Err(CameraError::InvalidAddress { .. })
+                ),
                 "{bad:?} should be rejected"
             );
         }
@@ -112,19 +122,27 @@ mod tests {
         let base = normalize_address("virb.local").unwrap();
         let with_port = normalize_address("127.0.0.1:8080").unwrap();
         assert_eq!(
-            resolve_camera_url(&with_port, "http://192.168.0.1/DCIM/a.MP4").unwrap().as_str(),
+            resolve_camera_url(&with_port, "http://192.168.0.1/DCIM/a.MP4")
+                .unwrap()
+                .as_str(),
             "http://127.0.0.1:8080/DCIM/a.MP4"
         );
         assert_eq!(
-            resolve_camera_url(&base, "/DCIM/100_VIRB/V0010001.MP4").unwrap().as_str(),
+            resolve_camera_url(&base, "/DCIM/100_VIRB/V0010001.MP4")
+                .unwrap()
+                .as_str(),
             "http://virb.local/DCIM/100_VIRB/V0010001.MP4"
         );
         assert_eq!(
-            resolve_camera_url(&base, "http://192.168.0.1/GMetrix/0001.fit").unwrap().as_str(),
+            resolve_camera_url(&base, "http://192.168.0.1/GMetrix/0001.fit")
+                .unwrap()
+                .as_str(),
             "http://virb.local/GMetrix/0001.fit"
         );
         assert_eq!(
-            resolve_camera_url(&base, "https://evil.example.com:81/x?a=1").unwrap().as_str(),
+            resolve_camera_url(&base, "https://evil.example.com:81/x?a=1")
+                .unwrap()
+                .as_str(),
             "http://virb.local/x?a=1"
         );
     }

@@ -22,7 +22,11 @@ use super::errors::snippet;
 struct VirbDeviceInfo {
     #[serde(default, deserialize_with = "flex::opt_string")]
     model: Option<String>,
-    #[serde(default, alias = "firmwareVersion", deserialize_with = "flex::opt_string")]
+    #[serde(
+        default,
+        alias = "firmwareVersion",
+        deserialize_with = "flex::opt_string"
+    )]
     firmware: Option<String>,
     #[serde(
         default,
@@ -68,7 +72,12 @@ struct VirbStatus {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VirbFeature {
-    #[serde(default, alias = "name", alias = "key", deserialize_with = "flex::opt_string")]
+    #[serde(
+        default,
+        alias = "name",
+        alias = "key",
+        deserialize_with = "flex::opt_string"
+    )]
     feature: Option<String>,
     #[serde(default, alias = "label", deserialize_with = "flex::opt_string")]
     description: Option<String>,
@@ -87,7 +96,12 @@ struct VirbFeature {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VirbMediaItem {
-    #[serde(default, alias = "fileName", alias = "filename", deserialize_with = "flex::opt_string")]
+    #[serde(
+        default,
+        alias = "fileName",
+        alias = "filename",
+        deserialize_with = "flex::opt_string"
+    )]
     name: Option<String>,
     #[serde(default, rename = "type", deserialize_with = "flex::opt_string")]
     media_type: Option<String>,
@@ -99,7 +113,12 @@ struct VirbMediaItem {
     file_size: Option<u64>,
     #[serde(default, deserialize_with = "flex::opt_string")]
     lens_mode: Option<String>,
-    #[serde(default, alias = "URL", alias = "path", deserialize_with = "flex::opt_string")]
+    #[serde(
+        default,
+        alias = "URL",
+        alias = "path",
+        deserialize_with = "flex::opt_string"
+    )]
     url: Option<String>,
     #[serde(
         default,
@@ -337,7 +356,9 @@ fn media_type(reported: Option<&str>, name: &str) -> MediaType {
             _ => {}
         }
     }
-    let extension = name.rsplit_once('.').map(|(_, ext)| ext.to_ascii_lowercase());
+    let extension = name
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase());
     match extension.as_deref() {
         Some("mp4" | "mov" | "glv") => MediaType::Video,
         Some("jpg" | "jpeg" | "png" | "dng") => MediaType::Photo,
@@ -361,10 +382,14 @@ fn parse_timestamp(value: &Value) -> Option<i64> {
             if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
                 return Some(dt.timestamp());
             }
-            ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y:%m:%d %H:%M:%S"]
-                .iter()
-                .find_map(|fmt| NaiveDateTime::parse_from_str(s, fmt).ok())
-                .map(|dt| dt.and_utc().timestamp())
+            [
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y:%m:%d %H:%M:%S",
+            ]
+            .iter()
+            .find_map(|fmt| NaiveDateTime::parse_from_str(s, fmt).ok())
+            .map(|dt| dt.and_utc().timestamp())
         }
         _ => None,
     }
@@ -415,7 +440,10 @@ mod flex {
             Value::String(s) => {
                 let s = s.trim();
                 s.parse().ok().or_else(|| {
-                    s.parse::<f64>().ok().filter(|f| *f >= 0.0).map(|f| f as u64)
+                    s.parse::<f64>()
+                        .ok()
+                        .filter(|f| *f >= 0.0)
+                        .map(|f| f as u64)
                 })
             }
             _ => None,
@@ -459,7 +487,9 @@ mod tests {
 
     #[test]
     fn parses_device_info_variants() {
-        let info = parse_device_info(&json!({"deviceInfo": {"model": "VIRB 360", "firmware": 4.3}})).unwrap();
+        let info =
+            parse_device_info(&json!({"deviceInfo": {"model": "VIRB 360", "firmware": 4.3}}))
+                .unwrap();
         assert_eq!(info.firmware.as_deref(), Some("4.3"));
         let info = parse_device_info(&json!({"model": "VIRB 360", "result": 1})).unwrap();
         assert_eq!(info.model.as_deref(), Some("VIRB 360"));
@@ -467,8 +497,15 @@ mod tests {
 
     #[test]
     fn rejects_malformed_device_info() {
-        for bad in [json!({"deviceInfo": []}), json!({"deviceInfo": "VIRB"}), json!({"deviceInfo": [42]})] {
-            assert!(matches!(parse_device_info(&bad), Err(CameraError::MalformedResponse { .. })));
+        for bad in [
+            json!({"deviceInfo": []}),
+            json!({"deviceInfo": "VIRB"}),
+            json!({"deviceInfo": [42]}),
+        ] {
+            assert!(matches!(
+                parse_device_info(&bad),
+                Err(CameraError::MalformedResponse { .. })
+            ));
         }
     }
 
@@ -490,7 +527,8 @@ mod tests {
 
     #[test]
     fn status_tolerates_missing_and_odd_fields() {
-        let status = parse_status(&json!({"result": 1, "batteryLevel": "n/a", "totalSpace": -5})).unwrap();
+        let status =
+            parse_status(&json!({"result": 1, "batteryLevel": "n/a", "totalSpace": -5})).unwrap();
         assert_eq!(status.recording_state, RecordingState::Unknown);
         assert_eq!(status.battery_level, None);
         assert_eq!(status.storage_total_bytes, None);
@@ -531,12 +569,18 @@ mod tests {
         assert_eq!(video.name, "V0010042.MP4");
         assert_eq!(video.media_type, MediaType::Video);
         assert_eq!(video.timestamp, Some(1_720_000_000));
-        assert_eq!(video.date_time.as_deref(), Some("2024-07-03T09:46:40+00:00"));
+        assert_eq!(
+            video.date_time.as_deref(),
+            Some("2024-07-03T09:46:40+00:00")
+        );
         assert_eq!(video.duration_secs, Some(125.5));
         assert_eq!(video.file_size_bytes, Some(1_048_576_000));
         assert_eq!(video.lens_mode.as_deref(), Some("360"));
         assert!(video.has_fit);
-        assert_eq!(video.fit_url.as_deref(), Some("http://192.168.0.1/GMetrix/2024-07-03-09-46-40.fit"));
+        assert_eq!(
+            video.fit_url.as_deref(),
+            Some("http://192.168.0.1/GMetrix/2024-07-03-09-46-40.fit")
+        );
         assert!(video.low_res_url.is_some());
 
         let photo = &items[1];
@@ -574,7 +618,11 @@ mod tests {
         let bare = &features.features[0];
         assert_eq!(bare.key, "previewWhileRecording");
         assert_eq!((bare.value.clone(), bare.enabled), (None, None));
-        let mode = features.features.iter().find(|f| f.key == "videoMode").unwrap();
+        let mode = features
+            .features
+            .iter()
+            .find(|f| f.key == "videoMode")
+            .unwrap();
         assert_eq!(mode.options.len(), 3);
 
         let media = parse_media_list(&fixture("real_fw420/media_list.json")).unwrap();
@@ -600,9 +648,18 @@ mod tests {
 
     #[test]
     fn parses_timestamp_formats() {
-        assert_eq!(parse_timestamp(&json!(1_720_000_000_000u64)), Some(1_720_000_000));
-        assert_eq!(parse_timestamp(&json!("2024-07-03T09:46:40Z")), Some(1_720_000_000));
-        assert_eq!(parse_timestamp(&json!("2024:07:03 09:46:40")), Some(1_720_000_000));
+        assert_eq!(
+            parse_timestamp(&json!(1_720_000_000_000u64)),
+            Some(1_720_000_000)
+        );
+        assert_eq!(
+            parse_timestamp(&json!("2024-07-03T09:46:40Z")),
+            Some(1_720_000_000)
+        );
+        assert_eq!(
+            parse_timestamp(&json!("2024:07:03 09:46:40")),
+            Some(1_720_000_000)
+        );
         assert_eq!(parse_timestamp(&json!("yesterday")), None);
         assert_eq!(parse_timestamp(&json!(0)), None);
     }

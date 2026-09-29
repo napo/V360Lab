@@ -37,12 +37,37 @@ async fn mount_command(server: &MockServer, command: &str, response: ResponseTem
 #[tokio::test]
 async fn sends_commands_and_parses_responses() {
     let server = MockServer::start().await;
-    mount_command(&server, "deviceInfo", ResponseTemplate::new(200).set_body_json(fixture("device_info.json"))).await;
-    mount_command(&server, "status", ResponseTemplate::new(200).set_body_json(fixture("status_recording.json"))).await;
-    mount_command(&server, "features", ResponseTemplate::new(200).set_body_json(fixture("features.json"))).await;
-    mount_command(&server, "mediaList", ResponseTemplate::new(200).set_body_json(fixture("media_list.json"))).await;
+    mount_command(
+        &server,
+        "deviceInfo",
+        ResponseTemplate::new(200).set_body_json(fixture("device_info.json")),
+    )
+    .await;
+    mount_command(
+        &server,
+        "status",
+        ResponseTemplate::new(200).set_body_json(fixture("status_recording.json")),
+    )
+    .await;
+    mount_command(
+        &server,
+        "features",
+        ResponseTemplate::new(200).set_body_json(fixture("features.json")),
+    )
+    .await;
+    mount_command(
+        &server,
+        "mediaList",
+        ResponseTemplate::new(200).set_body_json(fixture("media_list.json")),
+    )
+    .await;
     for command in ["startRecording", "stopRecording", "snapPicture"] {
-        mount_command(&server, command, ResponseTemplate::new(200).set_body_json(json!({ "result": 1 }))).await;
+        mount_command(
+            &server,
+            command,
+            ResponseTemplate::new(200).set_body_json(json!({ "result": 1 })),
+        )
+        .await;
     }
     let client = client_for(&server);
 
@@ -59,23 +84,42 @@ async fn sends_commands_and_parses_responses() {
     assert_eq!(media.len(), 3);
     assert_eq!(media[0].media_type, MediaType::Video);
 
-    assert_eq!(client.start_recording().await.unwrap().command, "startRecording");
-    assert_eq!(client.stop_recording().await.unwrap().command, "stopRecording");
+    assert_eq!(
+        client.start_recording().await.unwrap().command,
+        "startRecording"
+    );
+    assert_eq!(
+        client.stop_recording().await.unwrap().command,
+        "stopRecording"
+    );
     assert_eq!(client.snap_picture().await.unwrap().command, "snapPicture");
 }
 
 #[tokio::test]
 async fn malformed_json_is_reported() {
     let server = MockServer::start().await;
-    mount_command(&server, "status", ResponseTemplate::new(200).set_body_string("{\"result\": 1, \"state\": ")).await;
+    mount_command(
+        &server,
+        "status",
+        ResponseTemplate::new(200).set_body_string("{\"result\": 1, \"state\": "),
+    )
+    .await;
     let err = client_for(&server).status().await.unwrap_err();
-    assert!(matches!(err, CameraError::MalformedResponse { ref command, .. } if command == "status"), "{err:?}");
+    assert!(
+        matches!(err, CameraError::MalformedResponse { ref command, .. } if command == "status"),
+        "{err:?}"
+    );
 }
 
 #[tokio::test]
 async fn html_error_page_is_malformed_response() {
     let server = MockServer::start().await;
-    mount_command(&server, "deviceInfo", ResponseTemplate::new(200).set_body_string("<html>captive portal</html>")).await;
+    mount_command(
+        &server,
+        "deviceInfo",
+        ResponseTemplate::new(200).set_body_string("<html>captive portal</html>"),
+    )
+    .await;
     let err = client_for(&server).device_info().await.unwrap_err();
     assert_eq!(err.kind(), "malformedResponse");
 }
@@ -83,7 +127,12 @@ async fn html_error_page_is_malformed_response() {
 #[tokio::test]
 async fn result_zero_is_command_failed() {
     let server = MockServer::start().await;
-    mount_command(&server, "startRecording", ResponseTemplate::new(200).set_body_json(json!({ "result": 0 }))).await;
+    mount_command(
+        &server,
+        "startRecording",
+        ResponseTemplate::new(200).set_body_json(json!({ "result": 0 })),
+    )
+    .await;
     let err = client_for(&server).start_recording().await.unwrap_err();
     assert!(matches!(err, CameraError::CommandFailed { .. }), "{err:?}");
 }
@@ -91,11 +140,22 @@ async fn result_zero_is_command_failed() {
 #[tokio::test]
 async fn http_errors_are_typed() {
     let server = MockServer::start().await;
-    mount_command(&server, "status", ResponseTemplate::new(500).set_body_string("internal error")).await;
+    mount_command(
+        &server,
+        "status",
+        ResponseTemplate::new(500).set_body_string("internal error"),
+    )
+    .await;
     mount_command(&server, "features", ResponseTemplate::new(404)).await;
     let client = client_for(&server);
-    assert!(matches!(client.status().await.unwrap_err(), CameraError::Http { status: 500, .. }));
-    assert!(matches!(client.features().await.unwrap_err(), CameraError::UnsupportedCommand { .. }));
+    assert!(matches!(
+        client.status().await.unwrap_err(),
+        CameraError::Http { status: 500, .. }
+    ));
+    assert!(matches!(
+        client.features().await.unwrap_err(),
+        CameraError::UnsupportedCommand { .. }
+    ));
 }
 
 #[tokio::test]
@@ -193,7 +253,11 @@ async fn fetch_resource_enforces_size_limit() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/thumb.jpg"))
-        .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![1u8; 4096]).insert_header("content-type", "image/jpeg"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(vec![1u8; 4096])
+                .insert_header("content-type", "image/jpeg"),
+        )
         .mount(&server)
         .await;
     let client = client_for(&server);

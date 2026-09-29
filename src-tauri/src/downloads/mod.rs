@@ -121,15 +121,27 @@ pub async fn download_media(
     options: DownloadOptions,
     progress: ProgressSink<'_>,
 ) -> Result<DownloadReport, AppError> {
-    let url = item.url.as_deref().ok_or_else(|| AppError::MissingResource {
-        name: item.name.clone(),
-        what: "download URL",
-    })?;
+    let url = item
+        .url
+        .as_deref()
+        .ok_or_else(|| AppError::MissingResource {
+            name: item.name.clone(),
+            what: "download URL",
+        })?;
     let directory = prepare_directory(root, item).await?;
     let mut report = new_report(item, &directory);
 
     let media_path = directory.join(sanitize_file_name(&item.name));
-    let media = download_file(client, url, &media_path, item, FileKind::Media, item.file_size_bytes, progress).await?;
+    let media = download_file(
+        client,
+        url,
+        &media_path,
+        item,
+        FileKind::Media,
+        item.file_size_bytes,
+        progress,
+    )
+    .await?;
     report.files.push(media);
 
     if options.include_fit {
@@ -139,7 +151,9 @@ pub async fn download_media(
                     report.files.push(file);
                     report.warnings.extend(warning);
                 }
-                Err(e) => report.warnings.push(format!("FIT file not downloaded: {e}")),
+                Err(e) => report
+                    .warnings
+                    .push(format!("FIT file not downloaded: {e}")),
             }
         } else {
             log::debug!("{} has no associated FIT file", item.name);
@@ -155,7 +169,9 @@ pub async fn download_media(
         }
     }
 
-    report.files.push(write_metadata(client, item, &directory, &report).await?);
+    report
+        .files
+        .push(write_metadata(client, item, &directory, &report).await?);
     Ok(report)
 }
 
@@ -178,7 +194,9 @@ pub async fn download_fit(
     report.files.push(file);
     report.warnings.extend(warning);
     if !directory.join("metadata.json").exists() {
-        report.files.push(write_metadata(client, item, &directory, &report).await?);
+        report
+            .files
+            .push(write_metadata(client, item, &directory, &report).await?);
     }
     Ok(report)
 }
@@ -206,18 +224,33 @@ async fn download_fit_into(
     item: &MediaItem,
     progress: ProgressSink<'_>,
 ) -> Result<(DownloadedFile, Option<String>), AppError> {
-    let url = item.fit_url.as_deref().ok_or_else(|| AppError::MissingResource {
-        name: item.name.clone(),
-        what: "FIT telemetry file",
-    })?;
+    let url = item
+        .fit_url
+        .as_deref()
+        .ok_or_else(|| AppError::MissingResource {
+            name: item.name.clone(),
+            what: "FIT telemetry file",
+        })?;
     let path = directory.join(fit_file_name(url));
-    let file = download_file(client, url, &path, item, FileKind::Telemetry, None, progress).await?;
+    let file = download_file(
+        client,
+        url,
+        &path,
+        item,
+        FileKind::Telemetry,
+        None,
+        progress,
+    )
+    .await?;
     let warning = match fit::inspect_file(&path).await {
         Ok(header) => {
             log::debug!("FIT header for {}: {header:?}", item.name);
             None
         }
-        Err(e) => Some(format!("{} does not look like a FIT file: {e}", path.display())),
+        Err(e) => Some(format!(
+            "{} does not look like a FIT file: {e}",
+            path.display()
+        )),
     };
     Ok((file, warning))
 }
@@ -291,7 +324,11 @@ async fn save_thumbnail(
     directory: &Path,
 ) -> Result<DownloadedFile, AppError> {
     let resource = client.fetch_resource(url, MAX_THUMBNAIL_BYTES).await?;
-    let extension = match resource.content_type.as_deref().map(|t| t.split(';').next().unwrap_or(t).trim()) {
+    let extension = match resource
+        .content_type
+        .as_deref()
+        .map(|t| t.split(';').next().unwrap_or(t).trim())
+    {
         Some("image/png") => "png",
         Some("image/bmp") => "bmp",
         Some("image/svg+xml") => "svg",
@@ -382,7 +419,10 @@ mod tests {
 
     #[test]
     fn fit_names_are_sanitized() {
-        assert_eq!(fit_file_name("http://x/GMetrix/2024-07-03.fit?x=1"), "2024-07-03.fit");
+        assert_eq!(
+            fit_file_name("http://x/GMetrix/2024-07-03.fit?x=1"),
+            "2024-07-03.fit"
+        );
         assert_eq!(fit_file_name("http://x/fit?id=4"), "telemetry.fit");
     }
 
@@ -409,11 +449,17 @@ mod tests {
         let kinds: Vec<FileKind> = report.files.iter().map(|f| f.kind).collect();
         assert_eq!(
             kinds,
-            [FileKind::Media, FileKind::Telemetry, FileKind::Thumbnail, FileKind::Metadata]
+            [
+                FileKind::Media,
+                FileKind::Telemetry,
+                FileKind::Thumbnail,
+                FileKind::Metadata
+            ]
         );
 
         let metadata: Value =
-            serde_json::from_str(&std::fs::read_to_string(dir.join("metadata.json")).unwrap()).unwrap();
+            serde_json::from_str(&std::fs::read_to_string(dir.join("metadata.json")).unwrap())
+                .unwrap();
         assert_eq!(metadata["cameraMetadata"], item.raw);
         assert_eq!(metadata["camera"]["kind"], "mock");
         assert!(metadata["normalized"].get("raw").is_none());
@@ -429,12 +475,16 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
 
         let with_fit = media.iter().find(|m| m.has_fit).unwrap();
-        let report = download_fit(&camera, root.path(), with_fit, &|_| {}).await.unwrap();
+        let report = download_fit(&camera, root.path(), with_fit, &|_| {})
+            .await
+            .unwrap();
         assert_eq!(report.files[0].kind, FileKind::Telemetry);
         assert!(report.files.iter().any(|f| f.kind == FileKind::Metadata));
 
         let without_fit = media.iter().find(|m| !m.has_fit).unwrap();
-        let err = download_fit(&camera, root.path(), without_fit, &|_| {}).await.unwrap_err();
+        let err = download_fit(&camera, root.path(), without_fit, &|_| {})
+            .await
+            .unwrap_err();
         assert_eq!(err.kind(), "missingResource");
     }
 

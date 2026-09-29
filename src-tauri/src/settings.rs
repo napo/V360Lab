@@ -105,7 +105,9 @@ impl SettingsStore {
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Settings> {
-        self.current.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.current
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
 
@@ -124,7 +126,10 @@ mod tests {
             .update(|s| s.last_camera_address = Some("192.168.1.50".into()))
             .unwrap();
         let reloaded = SettingsStore::load(path);
-        assert_eq!(reloaded.get().last_camera_address.as_deref(), Some("192.168.1.50"));
+        assert_eq!(
+            reloaded.get().last_camera_address.as_deref(),
+            Some("192.168.1.50")
+        );
     }
 
     #[test]
@@ -132,7 +137,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = SettingsStore::load(dir.path().join("settings.json"));
         assert!(store.update(|s| s.status_poll_interval_secs = 0).is_err());
-        assert!(store.update(|s| s.download_directory = Some("relative/dir".into())).is_err());
+        assert!(store
+            .update(|s| s.download_directory = Some("relative/dir".into()))
+            .is_err());
         assert_eq!(store.get(), Settings::default());
     }
 

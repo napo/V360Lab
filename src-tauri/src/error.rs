@@ -56,9 +56,13 @@ impl AppError {
     pub fn detail(&self) -> Option<String> {
         match self {
             Self::Camera(e) => e.detail(),
-            Self::NotACamera { source, .. } => {
-                Some(format!("{source}{}", source.detail().map(|d| format!(": {d}")).unwrap_or_default()))
-            }
+            Self::NotACamera { source, .. } => Some(format!(
+                "{source}{}",
+                source
+                    .detail()
+                    .map(|d| format!(": {d}"))
+                    .unwrap_or_default()
+            )),
             Self::Filesystem { source, .. } => Some(source.to_string()),
             _ => None,
         }

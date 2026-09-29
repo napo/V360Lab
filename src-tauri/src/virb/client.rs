@@ -173,24 +173,37 @@ impl CameraClient for GarminVirb360Client {
         let list = models::parse_features(&self.execute(VirbCommand::Features).await?)?;
         log::debug!(
             "VIRB features: {}",
-            list.features.iter().map(|f: &CameraFeature| f.key.as_str()).collect::<Vec<_>>().join(", ")
+            list.features
+                .iter()
+                .map(|f: &CameraFeature| f.key.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         );
         Ok(list)
     }
 
     async fn start_recording(&self) -> Result<CommandAck, CameraError> {
         let command = VirbCommand::StartRecording;
-        Ok(models::command_ack(command.name(), self.execute(command).await?))
+        Ok(models::command_ack(
+            command.name(),
+            self.execute(command).await?,
+        ))
     }
 
     async fn stop_recording(&self) -> Result<CommandAck, CameraError> {
         let command = VirbCommand::StopRecording;
-        Ok(models::command_ack(command.name(), self.execute(command).await?))
+        Ok(models::command_ack(
+            command.name(),
+            self.execute(command).await?,
+        ))
     }
 
     async fn snap_picture(&self) -> Result<CommandAck, CameraError> {
         let command = VirbCommand::SnapPicture;
-        Ok(models::command_ack(command.name(), self.execute(command).await?))
+        Ok(models::command_ack(
+            command.name(),
+            self.execute(command).await?,
+        ))
     }
 
     async fn media_list(&self) -> Result<Vec<MediaItem>, CameraError> {
@@ -213,7 +226,10 @@ impl CameraClient for GarminVirb360Client {
             .map_err(|e| self.transport_error(&e, timeout))?;
         Self::check_resource_status(&url, response.status())?;
         if let Some(size) = response.content_length().filter(|size| *size > max_bytes) {
-            return Err(CameraError::TooLarge { size, limit: max_bytes });
+            return Err(CameraError::TooLarge {
+                size,
+                limit: max_bytes,
+            });
         }
         let content_type = response
             .headers()
@@ -233,7 +249,10 @@ impl CameraClient for GarminVirb360Client {
                 });
             }
         }
-        Ok(FetchedResource { bytes, content_type })
+        Ok(FetchedResource {
+            bytes,
+            content_type,
+        })
     }
 
     async fn download_to(
@@ -260,7 +279,10 @@ impl CameraClient for GarminVirb360Client {
             Ok(received) => received,
             Err(StreamError::Io(source)) => {
                 let _ = tokio::fs::remove_file(&partial).await;
-                return Err(CameraError::Io { path: partial, source });
+                return Err(CameraError::Io {
+                    path: partial,
+                    source,
+                });
             }
             Err(StreamError::Network(e)) => {
                 let _ = tokio::fs::remove_file(&partial).await;
@@ -298,7 +320,9 @@ async fn stream_to_file(
     total: Option<u64>,
     progress: ProgressFn<'_>,
 ) -> Result<u64, StreamError> {
-    let mut file = tokio::fs::File::create(path).await.map_err(StreamError::Io)?;
+    let mut file = tokio::fs::File::create(path)
+        .await
+        .map_err(StreamError::Io)?;
     let mut received = 0u64;
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {

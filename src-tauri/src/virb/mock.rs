@@ -76,7 +76,10 @@ impl MockVirb360Client {
     }
 
     fn with_state<T>(&self, f: impl FnOnce(&mut MockState) -> T) -> T {
-        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         f(&mut state)
     }
 
@@ -162,12 +165,21 @@ impl CameraClient for MockVirb360Client {
         self.simulate_latency().await;
         let command = "stopRecording";
         self.with_state(|s| {
-            let started = s.recording_started.take().ok_or_else(|| Self::failed(command))?;
+            let started = s
+                .recording_started
+                .take()
+                .ok_or_else(|| Self::failed(command))?;
             let duration = started.elapsed().as_secs_f64().max(1.0);
             let index = s.next_video;
             s.next_video += 1;
             let size = (duration * 45_000_000.0) as u64;
-            s.media.push(video_entry(index, Utc::now().timestamp(), duration, size, true));
+            s.media.push(video_entry(
+                index,
+                Utc::now().timestamp(),
+                duration,
+                size,
+                true,
+            ));
             Ok(())
         })?;
         Ok(models::command_ack(command, json!({ "result": 1 })))
@@ -223,7 +235,12 @@ impl CameraClient for MockVirb360Client {
             fit::empty_fit_file()
         } else {
             let line = format!("V360Lab mock media placeholder for {url}\n");
-            line.as_bytes().iter().copied().cycle().take(MOCK_FILE_BYTES).collect()
+            line.as_bytes()
+                .iter()
+                .copied()
+                .cycle()
+                .take(MOCK_FILE_BYTES)
+                .collect()
         };
         let total = content.len() as u64;
         let partial = partial_path(destination);
@@ -387,7 +404,11 @@ mod tests {
 
         let video_path = dir.path().join("video.mp4");
         let bytes = mock
-            .download_to("mock://virb360/DCIM/100_VIRB/V0000042.MP4", &video_path, &|_, _| {})
+            .download_to(
+                "mock://virb360/DCIM/100_VIRB/V0000042.MP4",
+                &video_path,
+                &|_, _| {},
+            )
             .await
             .unwrap();
         assert_eq!(bytes, MOCK_FILE_BYTES as u64);

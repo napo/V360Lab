@@ -11,7 +11,8 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::camera::address::DEFAULT_CAMERA_ADDRESS;
 use crate::camera::{
-    CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList, MediaItem,
+    CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList,
+    MediaItem,
 };
 use crate::downloads::{self, DownloadOptions, DownloadProgress, DownloadReport};
 use crate::error::AppError;
@@ -79,8 +80,14 @@ pub fn get_settings(state: State<'_, AppState>) -> SettingsView {
 }
 
 #[tauri::command]
-pub fn update_settings(state: State<'_, AppState>, settings: Settings) -> CommandResult<SettingsView> {
-    let saved = logged("update_settings", state.settings.update(|current| *current = settings))?;
+pub fn update_settings(
+    state: State<'_, AppState>,
+    settings: Settings,
+) -> CommandResult<SettingsView> {
+    let saved = logged(
+        "update_settings",
+        state.settings.update(|current| *current = settings),
+    )?;
     crate::apply_log_level(saved.debug_mode);
     Ok(settings_view(&state))
 }
@@ -219,7 +226,11 @@ pub async fn get_media_list(state: State<'_, AppState>) -> CommandResult<Vec<Med
 #[tauri::command]
 pub async fn fetch_thumbnail(state: State<'_, AppState>, url: String) -> CommandResult<String> {
     let result = async {
-        let resource = state.camera().await?.fetch_resource(&url, MAX_THUMBNAIL_BYTES).await?;
+        let resource = state
+            .camera()
+            .await?
+            .fetch_resource(&url, MAX_THUMBNAIL_BYTES)
+            .await?;
         let content_type = resource
             .content_type
             .filter(|t| t.starts_with("image/"))
@@ -254,7 +265,14 @@ pub async fn download_media(
             include_fit,
             include_thumbnail,
         };
-        downloads::download_media(camera.as_ref(), &state.download_root(), &item, options, &emit).await
+        downloads::download_media(
+            camera.as_ref(),
+            &state.download_root(),
+            &item,
+            options,
+            &emit,
+        )
+        .await
     }
     .await;
     logged("download_media", result)

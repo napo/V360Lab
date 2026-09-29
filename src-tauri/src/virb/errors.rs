@@ -106,9 +106,14 @@ fn looks_unsupported(response: &Value) -> bool {
         .filter_map(|key| response.get(*key).and_then(Value::as_str))
         .map(str::to_lowercase)
         .any(|text| {
-            ["unsupported", "not supported", "unknown command", "invalid command"]
-                .iter()
-                .any(|needle| text.contains(needle))
+            [
+                "unsupported",
+                "not supported",
+                "unknown command",
+                "invalid command",
+            ]
+            .iter()
+            .any(|needle| text.contains(needle))
         })
 }
 
@@ -145,12 +150,15 @@ mod tests {
     #[test]
     fn maps_result_zero_to_command_failed() {
         let err = check_result("startRecording", &json!({ "result": 0 })).unwrap_err();
-        assert!(matches!(err, CameraError::CommandFailed { ref command, .. } if command == "startRecording"));
+        assert!(
+            matches!(err, CameraError::CommandFailed { ref command, .. } if command == "startRecording")
+        );
     }
 
     #[test]
     fn maps_unsupported_messages() {
-        let err = check_result("foo", &json!({ "result": 0, "error": "Unknown command" })).unwrap_err();
+        let err =
+            check_result("foo", &json!({ "result": 0, "error": "Unknown command" })).unwrap_err();
         assert!(matches!(err, CameraError::UnsupportedCommand { .. }));
     }
 
