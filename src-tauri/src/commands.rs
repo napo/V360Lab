@@ -9,11 +9,13 @@ use base64::Engine;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+use crate::activity::{ActivityEvent, Step, ACTIVITY_EVENT};
 use crate::camera::address::DEFAULT_CAMERA_ADDRESS;
 use crate::camera::{
     CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList,
     MediaItem,
 };
+use crate::discovery::{self, DiscoveredCamera};
 use crate::downloads::{self, DownloadOptions, DownloadProgress, DownloadReport};
 use crate::error::AppError;
 use crate::library::{self, DeleteReport};
@@ -27,6 +29,21 @@ type CommandResult<T> = Result<T, AppError>;
 pub const DOWNLOAD_PROGRESS_EVENT: &str = "download-progress";
 /// Thumbnails larger than this are not displayed.
 const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
+
+/// Emits the steps of a slow operation as `activity` events tagged with the
+/// id chosen by the UI, which shows them as they happen.
+fn activity_reporter(app: AppHandle, activity_id: String) -> impl Fn(Step) + Send + Sync {
+    move |step| {
+        log::debug!("[{activity_id}] {} {:?}", step.code, step.params);
+        let event = ActivityEvent {
+            activity_id: activity_id.clone(),
+            step,
+        };
+        if let Err(e) = app.emit(ACTIVITY_EVENT, event) {
+            log::debug!("Could not emit activity step: {e}");
+        }
+    }
+}
 
 /// Logs failures with technical details before they are sent to the UI.
 fn logged<T>(context: &str, result: CommandResult<T>) -> CommandResult<T> {
@@ -106,10 +123,13 @@ pub struct ConnectionInfo {
 /// information, reads its status, then keeps the client for later commands.
 #[tauri::command]
 pub async fn connect_camera(
+    app: AppHandle,
     state: State<'_, AppState>,
     address: String,
     mock: bool,
+    activity_id: String,
 ) -> CommandResult<ConnectionInfo> {
+    let report = activity_reporter(app, activity_id);
     let result = async {
         let client: Arc<dyn CameraClient> = if mock {
             Arc::new(MockVirb360Client::new())
@@ -117,6 +137,7 @@ pub async fn connect_camera(
             Arc::new(GarminVirb360Client::new(&address)?)
         };
         log::info!("Connecting to {}", client.address());
+        report(Step::info("connectContacting").param("address", client.address()));
         let device_info = client.device_info().await.map_err(|e| match e {
             CameraError::UnsupportedCommand { .. }
             | CameraError::MalformedResponse { .. }
@@ -126,10 +147,17 @@ pub async fn connect_camera(
             },
             other => other.into(),
         })?;
+        report(
+            Step::info("connectIdentified")
+                .param("model", device_info.model.clone().unwrap_or_default())
+                .param("firmware", device_info.firmware.clone().unwrap_or_default()),
+        );
+        report(Step::info("connectReadingStatus"));
         let status = match client.status().await {
             Ok(status) => Some(status),
             Err(e) => {
                 log::warn!("Connected, but status is unavailable: {e}");
+                report(Step::warning("connectStatusUnavailable"));
                 None
             }
         };
@@ -143,6 +171,7 @@ pub async fn connect_camera(
         if let Err(e) = persisted {
             log::warn!("Could not persist camera address: {e}");
         }
+        report(Step::success("connected").param("address", client.address()));
         Ok(ConnectionInfo {
             kind: client.kind(),
             address: client.address(),
@@ -152,6 +181,24 @@ pub async fn connect_camera(
     }
     .await;
     logged("connect_camera", result)
+}
+
+/// Looks for VIRB cameras: last used address, the camera's own Wi-Fi
+/// address, then a scan of the local network. Progress is reported as
+/// `activity` events.
+#[tauri::command]
+pub async fn discover_cameras(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    activity_id: String,
+) -> CommandResult<Vec<DiscoveredCamera>> {
+    let report = activity_reporter(app, activity_id);
+    let mut candidates = Vec::new();
+    candidates.extend(state.settings.get().last_camera_address);
+    candidates.push(DEFAULT_CAMERA_ADDRESS.to_string());
+    let found = discovery::discover(&candidates, &report).await;
+    log::info!("Discovery found {} camera(s)", found.len());
+    Ok(found)
 }
 
 #[tauri::command]
@@ -242,12 +289,15 @@ pub async fn update_feature(
 /// list. Per-item failures are reported in the result, not as an error.
 #[tauri::command]
 pub async fn delete_media(
+    app: AppHandle,
     state: State<'_, AppState>,
     items: Vec<MediaItem>,
+    activity_id: String,
 ) -> CommandResult<DeleteReport> {
+    let reporter = activity_reporter(app, activity_id);
     let result = async {
         let camera = state.camera().await?;
-        let report = library::delete_media(camera.as_ref(), &items).await;
+        let report = library::delete_media(camera.as_ref(), &items, &reporter).await;
         for failure in &report.failed {
             log::warn!("Could not delete {}: {}", failure.name, failure.error);
         }

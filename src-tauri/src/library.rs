@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 
+use crate::activity::{Reporter, Step};
 use crate::camera::{CameraClient, CameraError, MediaItem};
 use crate::error::{AppError, Resource};
 
@@ -26,7 +27,11 @@ pub struct DeleteReport {
 /// Deletes media items on the camera with a single request, then re-reads
 /// the media list to confirm: firmware 4.20 acknowledges `deleteFile` even
 /// when nothing was deleted, so the acknowledgement alone proves nothing.
-pub async fn delete_media(client: &dyn CameraClient, items: &[MediaItem]) -> DeleteReport {
+pub async fn delete_media(
+    client: &dyn CameraClient,
+    items: &[MediaItem],
+    report: Reporter<'_>,
+) -> DeleteReport {
     let mut failed = Vec::new();
     let mut requested = Vec::new();
     for item in items {
@@ -49,6 +54,7 @@ pub async fn delete_media(client: &dyn CameraClient, items: &[MediaItem]) -> Del
     }
 
     let urls: Vec<String> = requested.iter().filter_map(|i| i.url.clone()).collect();
+    report(Step::info("deleteRequest").param("count", urls.len() as u64));
     if let Err(e) = client.delete_files(&urls).await {
         // One request covers all items, so they share the same failure.
         log::warn!("deleteFile failed: {e}");
@@ -70,6 +76,7 @@ pub async fn delete_media(client: &dyn CameraClient, items: &[MediaItem]) -> Del
         };
     }
 
+    report(Step::info("deleteVerifying"));
     let (deleted, verified) = match client.media_list().await {
         Ok(remaining) => {
             let mut deleted = Vec::new();
@@ -92,6 +99,15 @@ pub async fn delete_media(client: &dyn CameraClient, items: &[MediaItem]) -> Del
         }
     };
 
+    let step = if failed.is_empty() {
+        Step::success("deleteDone")
+    } else {
+        Step::warning("deleteDone")
+    };
+    report(
+        step.param("deleted", deleted.len() as u64)
+            .param("failed", failed.len() as u64),
+    );
     DeleteReport {
         deleted,
         failed,
@@ -126,11 +142,17 @@ mod tests {
         let mut no_url = media[3].clone();
         no_url.url = None;
 
+        let steps = std::sync::Mutex::new(Vec::new());
         let report = delete_media(
             &camera,
             &[media[0].clone(), media[1].clone(), stale, no_url],
+            &|step| steps.lock().unwrap().push(step.code),
         )
         .await;
+        assert_eq!(
+            steps.into_inner().unwrap(),
+            vec!["deleteRequest", "deleteVerifying", "deleteDone"]
+        );
 
         assert!(report.verified);
         assert_eq!(

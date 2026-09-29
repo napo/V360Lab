@@ -112,3 +112,28 @@ async fn downloads_smallest_video_with_fit_and_smallest_photo() {
     }
     println!("files kept in {}", root.display());
 }
+
+/// Scans the local network without any known address.
+/// `V360LAB_SCAN=1 cargo test --test real_camera scan -- --ignored --nocapture`
+#[tokio::test]
+#[ignore = "scans the local network (set V360LAB_SCAN=1)"]
+async fn scan_finds_camera_on_local_network() {
+    if std::env::var("V360LAB_SCAN").is_err() {
+        eprintln!("V360LAB_SCAN not set: skipping network scan");
+        return;
+    }
+    let started = std::time::Instant::now();
+    let found = v360lab_lib::discovery::discover(&[], &|step| {
+        if step.code != "scanProgress" || step.progress.is_some_and(|p| p.done == p.total) {
+            println!(
+                "{:>6} ms  {} {:?}",
+                started.elapsed().as_millis(),
+                step.code,
+                step.params
+            );
+        }
+    })
+    .await;
+    println!("found: {found:?} in {} ms", started.elapsed().as_millis());
+    assert!(!found.is_empty(), "no camera found");
+}

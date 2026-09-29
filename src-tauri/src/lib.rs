@@ -5,8 +5,10 @@
 //!                                                        \-> virb::MockVirb360Client (development)
 //! ```
 
+pub mod activity;
 pub mod camera;
 pub mod commands;
+pub mod discovery;
 pub mod downloads;
 pub mod error;
 pub mod library;
@@ -70,6 +72,7 @@ pub fn run() {
             commands::get_settings,
             commands::update_settings,
             commands::connect_camera,
+            commands::discover_cameras,
             commands::disconnect_camera,
             commands::get_active_connection,
             commands::get_device_info,
