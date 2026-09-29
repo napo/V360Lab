@@ -692,3 +692,87 @@ select:focus-visible,
   color: var(--sidebar-text);
   border-color: #2c3b47;
 }
+
+/* Capture panel */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.segmented button {
+  font: inherit;
+  padding: 7px 18px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.segmented button:last-child {
+  border-right: none;
+}
+
+.segmented button.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: default;
+}
+
+.segmented button:disabled:not(.active) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.capture-fields {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.capture-field {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.capture-field > span {
+  color: var(--text-muted);
+}
+
+.capture-field select {
+  width: 100%;
+}
+
+.feature-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+.checkbox-cell {
+  width: 32px;
+}
+
+.selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}

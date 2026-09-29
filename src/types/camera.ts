@@ -89,4 +89,8 @@ export interface ActiveConnection {
   address: string;
 }
 
-export type CameraAction = "startRecording" | "stopRecording" | "snapPicture";
+export type CameraAction =
+  | "startRecording"
+  | "stopRecording"
+  | "snapPicture"
+  | "stopStillRecording";

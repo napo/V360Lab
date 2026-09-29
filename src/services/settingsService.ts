@@ -1,4 +1,4 @@
-import { open } from "@tauri-apps/plugin-dialog";
+import { ask, open } from "@tauri-apps/plugin-dialog";
 import type { AppInfo, Settings, SettingsView } from "../types/settings";
 import { call } from "./backend";
 
@@ -6,6 +6,10 @@ export const settingsService = {
   get: () => call<SettingsView>("get_settings"),
   update: (settings: Settings) => call<SettingsView>("update_settings", { settings }),
   appInfo: () => call<AppInfo>("app_info"),
+
+  /** Native confirmation dialog for destructive actions. */
+  confirm: (message: string, options: { title: string; okLabel: string; cancelLabel: string }) =>
+    ask(message, { ...options, kind: "warning" }),
 
   /** Native folder picker; resolves to null when cancelled. */
   pickDirectory: async (current: string | null, title: string): Promise<string | null> => {

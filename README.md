@@ -19,10 +19,16 @@ V360Lab is a desktop toolkit that:
 - Connect to a VIRB 360 by IP address or host name, check that it is reachable, and remember the last address that worked
 - Read camera information: model, firmware, device ID, part number
 - Read camera status: recording state, mode, battery, storage, GPS position; refreshed in the background
-- Camera controls: start recording, stop recording, take photo. Controls that conflict with the current camera state are disabled.
-- Browse the camera's reported features and settings (read-only), with a raw JSON view
+- Capture controls on the dashboard:
+  - switch between video and photo mode;
+  - choose the lens format (360°, front lens, rear lens, RAW);
+  - video: mode (normal, slow motion, time-lapse) and loop recording;
+  - photo: single, burst or interval (time-lapse) capture with interval and type, plus self-timer;
+  - start/stop recording, take a photo, start/stop interval capture. Controls that conflict with the current camera state are disabled.
+- Camera settings editor: every choice or on/off feature reported by the camera can be changed, with readable labels. A raw JSON view is available.
 - Media library: file name, type, date/time, duration, size, lens mode, thumbnail, preview URLs, FIT availability
-- Download media, FIT telemetry and thumbnails, plus a `metadata.json` holding the original camera metadata
+- Download media, FIT telemetry and thumbnails, plus a `metadata.json` holding the original camera metadata. Items can be downloaded one by one or as a selection.
+- Delete files on the camera, one by one or as a selection, after a native confirmation dialog. Each deletion is verified against the media list.
 - Mock camera mode for development without hardware
 - Error messages written for the user, with technical details available in debug mode
 - User interface in English and Italian (follows the system language by default; switchable from the sidebar or Settings)
@@ -193,12 +199,19 @@ Confirmed:
 - `features` returns `{"features": [{type, feature, enabled, value, options}]}`. `type` 0 = action (no value), 1 = choice, 2 = on/off toggle (`"1"`/`"0"`).
 - `mediaList` returns `{"media": [{type, subtype, name, url, thumbUrl, lowResVideoPath, fitURL, fileSize, date, groupId, index, lensMode, fav}]}`. `date` is Unix seconds in UTC (checked against the photo's EXIF capture time). URLs include the camera IP and `:80`. Video thumbnails are `.THM` (JPEG). Photo thumbnails are `.BMP` under `/thumb/`. `lensMode` values include `360` and `frontLensOnly`. Photos have no `fitURL`.
 - Downloads work end to end: MP4, FIT (valid FIT file), JPEG video thumbnails, 160×120 BMP photo thumbnails and JPG photos with EXIF/GPS. Sizes match `fileSize`.
+- `updateFeature` (`{"command":"updateFeature","feature":"<key>","value":"<value>"}`) returns the complete, updated feature list. V360Lab checks that the camera reports the requested value afterwards.
+- `deleteFile` (`{"command":"deleteFile","file":"<url as listed>"}`) returns `"result": 1` **even for files that do not exist**. V360Lab therefore re-reads the media list to confirm each deletion.
+- `stopStillRecording` exists and returns `"result": 1` when idle.
+- `mediaDirList` returns the media directories (`2:/DCIM/100_VIRB`, …). V360Lab does not use it yet.
+- An unknown command gets **HTTP 400** with an nginx HTML page; this is reported as "unsupported command".
 - `stopRecording` returns `{"result": 1, "media": {"uuids": ["<...>.fit"]}}`.
 - `mediaList` is slow on a full card (about 4 s and 280 KB for ~1000 files), so it gets a 60 s timeout.
 
 Still assumed (not yet observed):
 
-- The response to an unknown command. HTTP 404/405/501, or an error message mentioning an unknown/unsupported command, is reported as "unsupported command".
+- How the camera reports status during a photo interval capture, and whether `snapPicture` / `stopStillRecording` start and stop it. V360Lab assumes they do.
+- Whether the photo lens format has its own feature (`photo360Format`) or reuses `video360Format`. The UI uses whichever exists.
+- Whether deleting a video also deletes its FIT file, `.GLV` preview and `.THM` thumbnail.
 - How FIT file names (e.g. `2021-02-19-18-21-42.fit`) relate to the media `date`.
 
 Parsing is deliberately tolerant. Every field is optional, numbers may arrive as strings, several field-name aliases are accepted, and unknown properties are kept in `raw` so that firmware differences can be inspected in debug mode.
@@ -206,7 +219,8 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 ## Known limitations
 
 - Tested with one VIRB 360 (firmware 4.20), including small media and FIT downloads; multi-GB downloads have not been tried yet.
-- Camera settings are read-only; `updateFeature` is not implemented.
+- Settings whose value is free text (`friendlyName`, `wifiTimeout`) and actions (`locateCamera`, `previewWhileRecording`) cannot be changed yet.
+- Settings are locked while recording.
 - On firmware 4.20 the dashboard mode comes from the `shootingMode` feature. It is read after connecting and on manual refresh, not on every status poll.
 - FIT files are downloaded and their header is validated, but not decoded.
 - No live preview (RTSP) and no deletion of files on the camera.
@@ -216,7 +230,7 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 ### Still to verify with a real camera
 
 1. Downloading a multi-GB video (the `real_camera` test covers the smallest files).
-2. The response to an unknown command.
+2. Photo interval capture end to end (start, status while running, stop) and switching between video and photo mode.
 3. How raw (unstitched) dual-lens recordings and time-lapse groups (`groupId`) appear in the media list.
 4. Whether `snapPicture` is accepted while recording or in video mode (the UI currently disables it while recording).
 

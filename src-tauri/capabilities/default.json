@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default permissions for the main V360Lab window.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open"]
+  "permissions": ["core:default", "dialog:allow-open", "dialog:allow-ask"]
 }

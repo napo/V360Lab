@@ -8,6 +8,7 @@ import type {
   FeatureList,
   MediaItem,
 } from "../types/camera";
+import type { DeleteReport } from "../types/downloads";
 import { call } from "./backend";
 
 /**
@@ -35,12 +36,16 @@ export const cameraService = {
   status: shared(() => call<CameraStatus>("get_camera_status")),
   features: shared(() => call<FeatureList>("get_camera_features")),
   mediaList: shared(() => call<MediaItem[]>("get_media_list")),
+  updateFeature: (key: string, value: string) =>
+    call<FeatureList>("update_feature", { key, value }),
+  deleteMedia: (items: MediaItem[]) => call<DeleteReport>("delete_media", { items }),
   thumbnail: (url: string) => call<string>("fetch_thumbnail", { url }),
   runAction: (action: CameraAction) => {
     const commands: Record<CameraAction, string> = {
       startRecording: "start_recording",
       stopRecording: "stop_recording",
       snapPicture: "snap_picture",
+      stopStillRecording: "stop_still_recording",
     };
     return call<CommandAck>(commands[action]);
   },

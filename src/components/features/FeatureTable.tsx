@@ -1,13 +1,10 @@
 import { useI18n } from "../../hooks/useI18n";
-import type { CameraFeature, JsonValue } from "../../types/camera";
-import { formatJsonValue } from "../../utils/format";
-
-function sameValue(a: JsonValue, b: JsonValue): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
+import { featureLabel } from "../../i18n/featureLabels";
+import type { CameraFeature } from "../../types/camera";
+import { FeatureControl } from "./FeatureControl";
 
 export function FeatureTable({ features }: { features: CameraFeature[] }) {
-  const { t } = useI18n();
+  const { t, lookup } = useI18n();
   return (
     <div className="table-wrapper">
       <table className="data-table">
@@ -15,7 +12,6 @@ export function FeatureTable({ features }: { features: CameraFeature[] }) {
           <tr>
             <th>{t("features.colFeature")}</th>
             <th>{t("features.colValue")}</th>
-            <th>{t("features.colOptions")}</th>
             <th>{t("features.colEnabled")}</th>
           </tr>
         </thead>
@@ -23,29 +19,11 @@ export function FeatureTable({ features }: { features: CameraFeature[] }) {
           {features.map((feature) => (
             <tr key={feature.key}>
               <td>
-                <div>{feature.label ?? feature.key}</div>
+                <div>{featureLabel(lookup, feature)}</div>
                 <div className="mono muted small">{feature.key}</div>
               </td>
-              <td className="mono">{formatJsonValue(feature.value)}</td>
               <td>
-                {feature.options.length === 0 ? (
-                  <span className="muted">—</span>
-                ) : (
-                  <ul className="option-list">
-                    {feature.options.map((option, index) => (
-                      <li
-                        key={JSON.stringify(option)}
-                        className={sameValue(option, feature.value) ? "current" : undefined}
-                        title={feature.optionSummaries[index]}
-                      >
-                        <span className="mono">{formatJsonValue(option)}</span>
-                        {feature.optionSummaries[index] && (
-                          <span className="muted small"> — {feature.optionSummaries[index]}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <FeatureControl feature={feature} />
               </td>
               <td>
                 {feature.enabled == null ? (

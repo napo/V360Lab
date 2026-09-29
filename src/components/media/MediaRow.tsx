@@ -13,11 +13,23 @@ import { Thumbnail } from "./Thumbnail";
 interface MediaRowProps {
   item: MediaItem;
   options: DownloadOptions;
+  selected: boolean;
+  onToggleSelected: (item: MediaItem) => void;
+  onDelete: (item: MediaItem) => void;
+  /** Deleting is disabled while recording or another deletion runs. */
+  deleteDisabled: boolean;
 }
 
-const COLUMN_COUNT = 8;
+export const MEDIA_COLUMN_COUNT = 9;
 
-export function MediaRow({ item, options }: MediaRowProps) {
+export function MediaRow({
+  item,
+  options,
+  selected,
+  onToggleSelected,
+  onDelete,
+  deleteDisabled,
+}: MediaRowProps) {
   const [expanded, setExpanded] = useState(false);
   const { downloads, start } = useDownloads();
   const { debugMode } = useSettings();
@@ -28,6 +40,14 @@ export function MediaRow({ item, options }: MediaRowProps) {
   return (
     <>
       <tr className={expanded ? "expanded" : undefined}>
+        <td className="checkbox-cell">
+          <input
+            type="checkbox"
+            checked={selected}
+            aria-label={t("media.select")}
+            onChange={() => onToggleSelected(item)}
+          />
+        </td>
         <td>
           <Thumbnail url={item.thumbnailUrl} mediaType={item.mediaType} />
         </td>
@@ -68,13 +88,21 @@ export function MediaRow({ item, options }: MediaRowProps) {
             >
               {expanded ? t("media.hide") : t("media.details")}
             </button>
+            <button
+              type="button"
+              className="btn btn-small btn-danger"
+              disabled={busy || deleteDisabled}
+              onClick={() => onDelete(item)}
+            >
+              {t("media.delete")}
+            </button>
           </div>
           <DownloadStatus state={download} />
         </td>
       </tr>
       {expanded && (
         <tr className="details-row">
-          <td colSpan={COLUMN_COUNT}>
+          <td colSpan={MEDIA_COLUMN_COUNT}>
             <KeyValueList
               items={[
                 { label: t("media.mediaUrl"), value: item.url, mono: true },
