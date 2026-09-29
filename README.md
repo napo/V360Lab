@@ -153,41 +153,49 @@ Installers and bundles are written to `src-tauri/target/release/bundle/`.
 |---|---|
 | TCP connect | 3 s |
 | API command / thumbnail | 10 s total |
+| `mediaList` | 60 s total |
 | Download | 30 s without data (no total limit, since videos can be several GB) |
 
-## VIRB API assumptions
+## VIRB API notes
 
-The client follows the publicly known VIRB network API, but has not been validated against every firmware. Assumptions:
+Checked against a VIRB 360 running **firmware 4.20**. Sanitized real responses are in `src-tauri/tests/fixtures/real_fw420/`.
 
-- Commands are `POST /virb` with body `{"command": "<name>"}`. Responses are JSON objects with `"result": 1` on success and `0` on failure.
-- `deviceInfo` returns `{"deviceInfo": [{model, firmware, deviceId, partNumber, type, ...}]}`.
-- `status` returns flat fields such as `state` (`idle` / `recording`), `mode`, `batteryLevel` (percent), `batteryChargingState`, `totalSpace` / `availableSpace` (**assumed to be bytes**), `recordingTime`, `recordingTimeRemaining`, `gpsLatitude`, `gpsLongitude`.
-- `features` returns `{"features": [{feature, description, type, value, options, optionSummary, enabled}]}`.
-- `mediaList` returns `{"media": [{name, type, date, duration, fileSize, lensMode, url, thumbUrl, lowResVideoPath, fitURL, ...}]}`. `date` is **assumed to be Unix seconds (UTC)**. An empty `fitURL` means no telemetry.
-- HTTP 404/405/501, or an error message mentioning an unknown/unsupported command, is reported as "unsupported command".
+Confirmed:
+
+- Commands are `POST /virb` with body `{"command": "<name>"}`. Responses are JSON objects with `"result": 1` on success.
+- `deviceInfo` returns `{"deviceInfo": [{model, firmware, type, partNumber, deviceId, macAddress}]}`. `firmware` is an integer scaled by 100 (`420` = 4.20) and `deviceId` is a number.
+- `status` returns flat fields: `state` (`"recording"` while recording), `recordingTime` (s), `recordingTimeRemaining` (s), `batteryLevel` (percent, float), `batteryChargingState` (a number), `totalSpace` / `availableSpace` **in KiB** (converted to bytes), `gpsLatitude` / `gpsLongitude`, `wifiSignalStrength`, `photoCount`, and others. There is **no `mode` field**. The shooting mode appears in `features` as `shootingMode`.
+- `features` returns `{"features": [{type, feature, enabled, value, options}]}`. `type` 0 = action (no value), 1 = choice, 2 = on/off toggle (`"1"`/`"0"`).
+- `mediaList` returns `{"media": [{type, subtype, name, url, thumbUrl, lowResVideoPath, fitURL, fileSize, date, groupId, index, lensMode, fav}]}`. `date` is Unix seconds. URLs include the camera IP and `:80`. Video thumbnails are `.THM` (JPEG). Photo thumbnails are `.BMP` under `/thumb/`. `lensMode` values include `360` and `frontLensOnly`. Photos have no `fitURL`.
+- `stopRecording` returns `{"result": 1, "media": {"uuids": ["<...>.fit"]}}`.
+- `mediaList` is slow on a full card (about 4 s and 280 KB for ~1000 files), so it gets a 60 s timeout.
+
+Still assumed (not yet observed):
+
+- The `state` value while idle (anything without "record" in it is treated as not recording).
+- The response to an unknown command. HTTP 404/405/501, or an error message mentioning an unknown/unsupported command, is reported as "unsupported command".
+- The time zone of `date`. It is treated as UTC; FIT file names such as `2021-02-19-18-21-42.fit` do not obviously match it.
 
 Parsing is deliberately tolerant. Every field is optional, numbers may arrive as strings, several field-name aliases are accepted, and unknown properties are kept in `raw` so that firmware differences can be inspected in debug mode.
 
 ## Known limitations
 
-- **Not yet verified against a physical VIRB 360.** See the checklist below.
+- Tested with one VIRB 360 (firmware 4.20); media download and FIT download have not been exercised on hardware yet.
 - Camera settings are read-only; `updateFeature` is not implemented.
+- The dashboard "Mode" field is empty on firmware 4.20 (see above).
 - FIT files are downloaded and their header is validated, but not decoded.
 - No live preview (RTSP) and no deletion of files on the camera.
 - The capture date folder uses UTC.
 - Only one camera can be connected at a time.
+- In development, React StrictMode runs effects twice, so some requests (including the slow `mediaList`) are sent twice. Production builds are not affected.
 
-### To verify with a real camera
+### Still to verify with a real camera
 
-1. The command endpoint path (`/virb`) and the `result` convention on current VIRB 360 firmware.
-2. Units of `totalSpace` / `availableSpace` (bytes vs. KB/MB) and of `batteryLevel`.
-3. The `state` values reported while recording, and whether `mode` is a string or a number.
-4. The `date` format in `mediaList` (Unix seconds, milliseconds or another epoch) and its time zone.
-5. The exact field names for thumbnails, low-resolution previews and FIT files (`thumbUrl`, `lowResVideoPath`, `fitURL`).
-6. How raw (unstitched) dual-lens recordings appear in the media list.
-7. Whether `snapPicture` is accepted while recording or in video mode.
-8. The response to an unknown command.
-9. Whether media URLs contain the camera's own IP (they are re-anchored to the configured address either way).
+1. Downloading a large video and its FIT file end to end, including progress and the `.part` → final rename.
+2. The idle `state` value and the response to an unknown command.
+3. How raw (unstitched) dual-lens recordings and time-lapse groups (`groupId`) appear in the media list.
+4. Whether `snapPicture` is accepted while recording or in video mode (the UI currently disables it while recording).
+5. The time zone of `date` relative to FIT file names.
 
 Please report findings (with the raw JSON from debug mode) in an issue.
 
