@@ -27,20 +27,6 @@ pub struct DeviceInfo {
     pub raw: Value,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn camera_kind_names_match_the_frontend() {
-        assert_eq!(
-            serde_json::to_value(CameraKind::GarminVirb360).unwrap(),
-            "garmin-virb-360"
-        );
-        assert_eq!(serde_json::to_value(CameraKind::Mock).unwrap(), "mock");
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RecordingState {
@@ -133,4 +119,18 @@ pub struct CommandAck {
 pub struct FetchedResource {
     pub bytes: Vec<u8>,
     pub content_type: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn camera_kind_names_match_the_frontend() {
+        assert_eq!(
+            serde_json::to_value(CameraKind::GarminVirb360).unwrap(),
+            "garmin-virb-360"
+        );
+        assert_eq!(serde_json::to_value(CameraKind::Mock).unwrap(), "mock");
+    }
 }
