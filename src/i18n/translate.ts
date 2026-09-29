@@ -44,7 +44,8 @@ function template(language: Language, key: string, params?: TranslateParams): st
   const dictionary = DICTIONARIES[language] as Record<string, string>;
   const fallback = en as Record<string, string>;
   let resolved = key;
-  if (typeof params?.count === "number") {
+  // Plural keys (`_one`, `_other`, …) are used only when they exist.
+  if (typeof params?.count === "number" && `${key}_other` in fallback) {
     const form = new Intl.PluralRules(language).select(params.count);
     resolved = `${key}_${form}` in fallback ? `${key}_${form}` : `${key}_other`;
   }

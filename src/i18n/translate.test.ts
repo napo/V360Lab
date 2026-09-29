@@ -30,6 +30,11 @@ describe("translate", () => {
     expect(translate("it", "media.count", { count: 0, size: "0 B" })).toBe("0 elementi · 0 B");
   });
 
+  test("uses the plain key when a count is given but no plural forms exist", () => {
+    expect(translate("en", "features.count", { count: 40 })).toBe("40 features reported");
+    expect(translate("it", "features.count", { count: 40 })).toBe("40 funzioni riportate");
+  });
+
   test("translates known keys", () => {
     expect(translate("it", "nav.settings")).toBe("Impostazioni");
     expect(translate("en", "nav.settings")).toBe("Settings");

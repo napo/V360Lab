@@ -1,18 +1,20 @@
 import type { TranslationKey } from "../i18n/types";
 
-export type PageId = "dashboard" | "media" | "features" | "settings" | "about";
+export type PageId = "connect" | "capture" | "media" | "advanced";
 
 export interface PageDefinition {
   id: PageId;
   labelKey: TranslationKey;
-  /** Pages that show the connection screen when no camera is connected. */
+  /** Pages that need a connected camera. */
   requiresCamera: boolean;
 }
 
+/** The four sections of the app, in navigation order. */
 export const PAGES: PageDefinition[] = [
-  { id: "dashboard", labelKey: "nav.dashboard", requiresCamera: true },
+  { id: "connect", labelKey: "nav.connect", requiresCamera: false },
+  { id: "capture", labelKey: "nav.capture", requiresCamera: true },
   { id: "media", labelKey: "nav.media", requiresCamera: true },
-  { id: "features", labelKey: "nav.features", requiresCamera: true },
-  { id: "settings", labelKey: "nav.settings", requiresCamera: false },
-  { id: "about", labelKey: "nav.about", requiresCamera: false },
+  { id: "advanced", labelKey: "nav.advanced", requiresCamera: false },
 ];
+
+export type Navigate = (page: PageId) => void;

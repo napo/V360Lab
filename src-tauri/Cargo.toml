@@ -36,3 +36,11 @@ if-addrs = "0.15.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6"
 tempfile = "3"
+
+# Keep debug builds small: no debug info for dependencies (Tauri pulls in
+# ~500 crates), line tables only for V360Lab itself.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

@@ -48,6 +48,9 @@ export interface CameraContextValue {
   refreshing: boolean;
   pendingAction: CameraAction | null;
   actionError: AppError | null;
+  /** A photo interval (time-lapse) capture was started from this app and
+   * not stopped yet. Firmware 4.20 status may not report it. */
+  intervalActive: boolean;
   /** Connects and reports progress under `activityId`; resolves to success. */
   connect: (address: string, mock: boolean, activityId: string) => Promise<boolean>;
   disconnect: () => Promise<void>;
@@ -76,6 +79,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const [refreshing, setRefreshing] = useState(false);
   const [pendingAction, setPendingAction] = useState<CameraAction | null>(null);
   const [actionError, setActionError] = useState<AppError | null>(null);
+  const [intervalActive, setIntervalActive] = useState(false);
 
   const inFlight = useRef(false);
   const refreshQueued = useRef(false);
@@ -199,6 +203,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       setStatusUpdatedAt(null);
       setFeatures(null);
       setFeaturesError(null);
+      setIntervalActive(false);
       setFeatureError(null);
       clearThumbnailCache();
     }
@@ -208,8 +213,13 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     async (action: CameraAction) => {
       setPendingAction(action);
       setActionError(null);
+      const photoInterval =
+        featureValue(findFeature(features, "shootingMode")) === "photoShootingMode" &&
+        featureValue(findFeature(features, "photoMode")) === "Timelapse";
       try {
         await cameraService.runAction(action);
+        if (action === "snapPicture" && photoInterval) setIntervalActive(true);
+        if (action === "stopStillRecording") setIntervalActive(false);
       } catch (e) {
         setActionError(toAppError(e));
       } finally {
@@ -217,7 +227,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
         await refreshStatus();
       }
     },
-    [refreshStatus],
+    [features, refreshStatus],
   );
 
   // Restore a connection kept by the backend (e.g. after a frontend reload).
@@ -266,6 +276,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       refreshing,
       pendingAction,
       actionError,
+      intervalActive,
       connect,
       disconnect,
       refreshStatus,
@@ -289,6 +300,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       refreshing,
       pendingAction,
       actionError,
+      intervalActive,
       connect,
       disconnect,
       refreshStatus,

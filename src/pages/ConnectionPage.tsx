@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ActivityPanel } from "../components/ActivityPanel";
+import { BrandHero } from "../components/BrandHero";
 import { Panel } from "../components/Panel";
 import { useActivity } from "../hooks/useActivity";
 import { useCamera } from "../hooks/useCamera";
@@ -77,10 +78,7 @@ export function ConnectionPage() {
 
   return (
     <div className="page page-narrow">
-      <div className="brand-hero">
-        <img className="logo-light" src="/brand/logo-light-bg.png" alt={t("app.name")} />
-        <img className="logo-dark" src="/brand/logo-dark-bg.png" alt={t("app.name")} />
-      </div>
+      <BrandHero />
 
       <div className="connect-main">
         <button

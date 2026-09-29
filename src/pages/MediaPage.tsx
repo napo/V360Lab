@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { ActivityPanel } from "../components/ActivityPanel";
 import { DeleteResult } from "../components/media/DeleteResult";
-import { MediaTable } from "../components/media/MediaTable";
+import { MediaGrid } from "../components/media/MediaGrid";
 import { useActivity } from "../hooks/useActivity";
 import { useAsyncResource } from "../hooks/useAsyncResource";
 import { useCamera } from "../hooks/useCamera";
@@ -151,6 +151,14 @@ export function MediaPage() {
           />
           {t("media.includeThumbnail")}
         </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={items.length > 0 && items.every((item) => selected.has(item.id))}
+            onChange={toggleAll}
+          />
+          {t("media.selectAll")}
+        </label>
         <span className="toolbar-spacer" />
         <span className="muted small">
           {t("media.count", { count: items.length, size: formatBytes(totalBytes) })}
@@ -198,12 +206,11 @@ export function MediaPage() {
       )}
       {media.data && items.length === 0 && !media.loading && <p className="empty">{t("media.empty")}</p>}
       {items.length > 0 && (
-        <MediaTable
+        <MediaGrid
           items={items}
           options={options}
           selected={selected}
           onToggleSelected={toggleSelected}
-          onToggleAll={toggleAll}
           onDelete={(item) => void deleteItems([item])}
           deleteDisabled={deleting || recording}
         />

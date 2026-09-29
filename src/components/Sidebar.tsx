@@ -1,6 +1,7 @@
 import { useCamera } from "../hooks/useCamera";
 import { useI18n } from "../hooks/useI18n";
 import { ConnectionBadge } from "./ConnectionBadge";
+import { PageIcon } from "./icons";
 import { LanguageSelect } from "./LanguageSelect";
 import { PAGES, type PageId } from "./navigation";
 
@@ -9,6 +10,7 @@ interface SidebarProps {
   onNavigate: (page: PageId) => void;
 }
 
+/** Desktop navigation. */
 export function Sidebar({ current, onNavigate }: SidebarProps) {
   const { connection, disconnect } = useCamera();
   const { t } = useI18n();
@@ -26,6 +28,7 @@ export function Sidebar({ current, onNavigate }: SidebarProps) {
             className={`nav-item ${page.id === current ? "active" : ""}`}
             onClick={() => onNavigate(page.id)}
           >
+            <PageIcon page={page.id} size={20} />
             {t(page.labelKey)}
           </button>
         ))}

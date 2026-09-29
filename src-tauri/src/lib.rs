@@ -53,9 +53,12 @@ pub fn run() {
         .setup(|app| {
             let paths = app.path();
             let settings_path = paths.app_config_dir()?.join("settings.json");
+            // Android has no accessible Downloads/home directory for apps:
+            // fall back to the app's own data directory.
             let download_root = paths
                 .download_dir()
-                .or_else(|_| paths.home_dir())?
+                .or_else(|_| paths.home_dir())
+                .or_else(|_| paths.app_data_dir())?
                 .join("V360Lab");
             let settings = SettingsStore::load(settings_path.clone());
             apply_log_level(settings.get().debug_mode);
