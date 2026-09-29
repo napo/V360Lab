@@ -125,6 +125,10 @@ Running `npm run dev` alone serves the UI in a normal browser, but without the R
 # with wiremock), downloads, settings, mock camera. No hardware needed.
 cd src-tauri && cargo test
 
+# Opt-in checks against a real camera (read-only on the camera; downloads
+# the smallest video with FIT and the smallest photo into a temp directory)
+V360LAB_CAMERA=192.168.0.1 cargo test --test real_camera -- --ignored --nocapture --test-threads=1
+
 # Frontend: formatting and error helpers
 npm test
 
@@ -182,16 +186,15 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 
 - Tested with one VIRB 360 (firmware 4.20); media download and FIT download have not been exercised on hardware yet.
 - Camera settings are read-only; `updateFeature` is not implemented.
-- The dashboard "Mode" field is empty on firmware 4.20 (see above).
+- On firmware 4.20 the dashboard mode comes from the `shootingMode` feature. It is read after connecting and on manual refresh, not on every status poll.
 - FIT files are downloaded and their header is validated, but not decoded.
 - No live preview (RTSP) and no deletion of files on the camera.
 - The capture date folder uses UTC.
 - Only one camera can be connected at a time.
-- In development, React StrictMode runs effects twice, so some requests (including the slow `mediaList`) are sent twice. Production builds are not affected.
 
 ### Still to verify with a real camera
 
-1. Downloading a large video and its FIT file end to end, including progress and the `.part` → final rename.
+1. Downloading a large video and its FIT file end to end, including progress and the `.part` → final rename (the `real_camera` test covers the smallest files).
 2. The idle `state` value and the response to an unknown command.
 3. How raw (unstitched) dual-lens recordings and time-lapse groups (`groupId`) appear in the media list.
 4. Whether `snapPicture` is accepted while recording or in video mode (the UI currently disables it while recording).
