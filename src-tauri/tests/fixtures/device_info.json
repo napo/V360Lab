@@ -1,0 +1,13 @@
+{
+  "deviceInfo": [
+    {
+      "deviceId": "3957712345",
+      "firmware": "4.30",
+      "model": "VIRB 360",
+      "partNumber": "006-B2811-00",
+      "type": "camera",
+      "wifiMacAddress": "00:11:22:33:44:55"
+    }
+  ],
+  "result": 1
+}

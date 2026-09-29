@@ -1,0 +1,17 @@
+{
+  "apiMax": "2.20",
+  "apiMin": "1.00",
+  "availableSpace": 41203433472,
+  "batteryChargingState": "discharging",
+  "batteryLevel": 82,
+  "gpsLatitude": 46.0664,
+  "gpsLongitude": 11.1257,
+  "gpsSatelliteFix": 1,
+  "mode": "video",
+  "recordingTime": 0,
+  "recordingTimeRemaining": 21540,
+  "state": "idle",
+  "totalSpace": 63864569856,
+  "wifiSignalStrength": -48,
+  "result": 1
+}

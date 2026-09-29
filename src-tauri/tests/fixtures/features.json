@@ -1,0 +1,35 @@
+{
+  "features": [
+    {
+      "feature": "videoMode",
+      "description": "Video Mode",
+      "type": 1,
+      "value": "5.7K 30fps",
+      "options": ["5.7K 30fps", "4K 30fps", "Raw 2x 2.8K"],
+      "optionSummary": ["Stitched 5.7K", "Stitched 4K", "Unstitched dual lens"],
+      "enabled": 1
+    },
+    {
+      "feature": "lensMode",
+      "description": "Lens Mode",
+      "type": 1,
+      "value": "360",
+      "options": ["360", "front", "rear"],
+      "enabled": 1
+    },
+    {
+      "feature": "gps",
+      "description": "GPS",
+      "type": 0,
+      "value": "on",
+      "enabled": "true"
+    },
+    {
+      "feature": "voiceControl",
+      "type": 0,
+      "value": "off",
+      "enabled": 0
+    }
+  ],
+  "result": 1
+}

@@ -1,5 +1,8 @@
 //! V360Lab native backend.
 
+pub mod camera;
+pub mod virb;
+
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]

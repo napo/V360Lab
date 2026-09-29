@@ -1,0 +1,33 @@
+{
+  "media": [
+    {
+      "date": 1720000000,
+      "duration": 125.5,
+      "fileSize": 1048576000,
+      "fitURL": "http://192.168.0.1/GMetrix/2024-07-03-09-46-40.fit",
+      "lensMode": "360",
+      "lowResVideoPath": "http://192.168.0.1/DCIM/100_VIRB/V0010042.GLV",
+      "name": "V0010042.MP4",
+      "thumbUrl": "http://192.168.0.1/DCIM/100_VIRB/V0010042.THM",
+      "type": "video",
+      "url": "http://192.168.0.1/DCIM/100_VIRB/V0010042.MP4"
+    },
+    {
+      "date": 1720000300,
+      "fileSize": 7340032,
+      "fitURL": "",
+      "lensMode": "360",
+      "name": "V0020001.JPG",
+      "thumbUrl": "http://192.168.0.1/DCIM/100_VIRB/V0020001.JPG?thumb=1",
+      "type": "photo",
+      "url": "http://192.168.0.1/DCIM/100_VIRB/V0020001.JPG"
+    },
+    {
+      "date": "1720003600",
+      "fileSize": "2048",
+      "url": "/DCIM/100_VIRB/V0010043.MP4",
+      "futureFirmwareField": { "nested": true }
+    }
+  ],
+  "result": 1
+}
