@@ -22,7 +22,8 @@ use super::client::partial_path;
 use super::models;
 
 const MOCK_ADDRESS: &str = "mock://virb360";
-const TOTAL_SPACE: u64 = 63_864_569_856;
+/// Card capacity in bytes.
+const TOTAL_SPACE: u64 = 128_010_158_080;
 /// Size of the placeholder files written for mock media downloads.
 const MOCK_FILE_BYTES: usize = 512 * 1024;
 
@@ -122,7 +123,8 @@ impl CameraClient for MockVirb360Client {
         models::parse_status(&json!({
             "apiMax": "2.20",
             "apiMin": "1.00",
-            "availableSpace": available,
+            // The VIRB reports storage in KiB.
+            "availableSpace": available / 1024,
             "batteryChargingState": "discharging",
             "batteryLevel": 87,
             "gpsLatitude": 46.0664,
@@ -132,7 +134,7 @@ impl CameraClient for MockVirb360Client {
             "recordingTime": recording_secs.unwrap_or(0),
             "recordingTimeRemaining": available / 45_000_000,
             "state": if recording_secs.is_some() { "recording" } else { "idle" },
-            "totalSpace": TOTAL_SPACE,
+            "totalSpace": TOTAL_SPACE / 1024,
             "wifiSignalStrength": -51,
             "result": 1
         }))

@@ -1,0 +1,44 @@
+{
+  "media": [
+    {
+      "type": "video",
+      "subtype": "timelapse",
+      "url": "http://192.168.0.1:80/DCIM/101_VIRB/V0040006.MP4",
+      "thumbUrl": "http://192.168.0.1:80/DCIM/101_VIRB/V0040006.THM",
+      "fav": "false",
+      "lowResVideoPath": "http://192.168.0.1:80/DCIM/101_VIRB/V0040006.GLV",
+      "fitURL": "http://192.168.0.1:80/GMetrix/2021-02-19-18-21-42.fit",
+      "name": "V0040006.MP4",
+      "fileSize": 2635344,
+      "date": 1613751858,
+      "groupId": 101004,
+      "index": 1,
+      "lensMode": "360"
+    },
+    {
+      "type": "photo",
+      "url": "http://192.168.0.1:80/DCIM/101_VIRB/V0050007.JPG",
+      "thumbUrl": "http://192.168.0.1:80/thumb/DCIM/101_VIRB/V0050007.BMP",
+      "fav": "false",
+      "name": "V0050007.JPG",
+      "fileSize": 1217193,
+      "date": 1789550286,
+      "groupId": 101005,
+      "index": 1,
+      "lensMode": "frontLensOnly"
+    },
+    {
+      "type": "photo",
+      "url": "http://192.168.0.1:80/DCIM/101_VIRB/V0050008.JPG",
+      "thumbUrl": "http://192.168.0.1:80/thumb/DCIM/101_VIRB/V0050008.BMP",
+      "fav": "false",
+      "name": "V0050008.JPG",
+      "fileSize": 1218007,
+      "date": 1789550286,
+      "groupId": 101005,
+      "index": 2,
+      "lensMode": "frontLensOnly"
+    }
+  ],
+  "result": 1
+}

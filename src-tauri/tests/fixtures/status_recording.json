@@ -1,11 +1,11 @@
 {
-  "availableSpace": "41000000000",
+  "availableSpace": "80000000",
   "batteryChargingState": "discharging",
   "batteryLevel": "79",
   "mode": "video",
   "recordingTime": 42,
   "recordingTimeRemaining": 21498,
   "state": "recording",
-  "totalSpace": "63864569856",
+  "totalSpace": "125009920",
   "result": 1
 }

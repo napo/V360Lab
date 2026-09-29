@@ -293,6 +293,7 @@ async fn save_thumbnail(
     let resource = client.fetch_resource(url, MAX_THUMBNAIL_BYTES).await?;
     let extension = match resource.content_type.as_deref().map(|t| t.split(';').next().unwrap_or(t).trim()) {
         Some("image/png") => "png",
+        Some("image/bmp") => "bmp",
         Some("image/svg+xml") => "svg",
         Some("image/webp") => "webp",
         _ => "jpg",

@@ -156,7 +156,7 @@ pub fn parse_device_info(response: &Value) -> Result<DeviceInfo, CameraError> {
         .map_err(|e| malformed(CMD, e.to_string(), response))?;
     Ok(DeviceInfo {
         model: parsed.model,
-        firmware: parsed.firmware,
+        firmware: firmware_version(&entry["firmware"]).or(parsed.firmware),
         device_id: parsed.device_id,
         part_number: parsed.part_number,
         device_type: parsed.device_type,
@@ -164,7 +164,15 @@ pub fn parse_device_info(response: &Value) -> Result<DeviceInfo, CameraError> {
     })
 }
 
+/// Garmin reports firmware as an integer scaled by 100 (`420` = 4.20).
+fn firmware_version(value: &Value) -> Option<String> {
+    let scaled = value.as_u64().filter(|n| *n >= 100)?;
+    Some(format!("{}.{:02}", scaled / 100, scaled % 100))
+}
+
 /// Parses `status`. Fields are expected at the top level of the response.
+/// Storage values are reported in KiB (a 128 GB card reports ~125 000 000)
+/// and converted to bytes here.
 pub fn parse_status(response: &Value) -> Result<CameraStatus, CameraError> {
     const CMD: &str = "status";
     let entry = match response.get("status") {
@@ -178,14 +186,18 @@ pub fn parse_status(response: &Value) -> Result<CameraStatus, CameraError> {
         mode: parsed.mode,
         battery_level: parsed.battery_level,
         battery_charging_state: parsed.battery_charging_state,
-        storage_total_bytes: parsed.total_space,
-        storage_available_bytes: parsed.available_space,
+        storage_total_bytes: parsed.total_space.map(kib_to_bytes),
+        storage_available_bytes: parsed.available_space.map(kib_to_bytes),
         recording_time_secs: parsed.recording_time,
         recording_time_remaining_secs: parsed.recording_time_remaining,
         gps_latitude: parsed.gps_latitude,
         gps_longitude: parsed.gps_longitude,
         raw: entry.clone(),
     })
+}
+
+fn kib_to_bytes(kib: u64) -> u64 {
+    kib.saturating_mul(1024)
 }
 
 fn recording_state(state: Option<&str>, recording: Option<bool>) -> RecordingState {
@@ -466,8 +478,8 @@ mod tests {
         assert_eq!(idle.recording_state, RecordingState::Idle);
         assert_eq!(idle.battery_level, Some(82.0));
         assert_eq!(idle.mode.as_deref(), Some("video"));
-        assert_eq!(idle.storage_total_bytes, Some(63_864_569_856));
-        assert_eq!(idle.storage_available_bytes, Some(41_203_433_472));
+        assert_eq!(idle.storage_total_bytes, Some(128_010_158_080));
+        assert_eq!(idle.storage_available_bytes, Some(81_920_000_000));
 
         let recording = parse_status(&fixture("status_recording.json")).unwrap();
         assert_eq!(recording.recording_state, RecordingState::Recording);
@@ -538,6 +550,42 @@ mod tests {
         assert_eq!(unnamed.file_size_bytes, Some(2048));
         assert_eq!(unnamed.timestamp, Some(1_720_003_600));
         assert_eq!(unnamed.raw["futureFirmwareField"], json!({"nested": true}));
+    }
+
+    #[test]
+    fn parses_real_firmware_420_responses() {
+        let info = parse_device_info(&fixture("real_fw420/device_info.json")).unwrap();
+        assert_eq!(info.model.as_deref(), Some("VIRB 360"));
+        assert_eq!(info.firmware.as_deref(), Some("4.20"));
+        assert_eq!(info.device_id.as_deref(), Some("3300000001"));
+        assert_eq!(info.raw["firmware"], 420);
+
+        let status = parse_status(&fixture("real_fw420/status_recording.json")).unwrap();
+        assert_eq!(status.recording_state, RecordingState::Recording);
+        assert_eq!(status.recording_time_secs, Some(105.0));
+        assert_eq!(status.battery_level, Some(75.0));
+        assert_eq!(status.battery_charging_state.as_deref(), Some("0"));
+        // ~119 GiB card: KiB converted to bytes.
+        assert_eq!(status.storage_total_bytes, Some(125_009_920 * 1024));
+        assert_eq!(status.mode, None, "firmware 4.20 reports no mode in status");
+
+        let features = parse_features(&fixture("real_fw420/features.json")).unwrap();
+        assert_eq!(features.features.len(), 22);
+        let bare = &features.features[0];
+        assert_eq!(bare.key, "previewWhileRecording");
+        assert_eq!((bare.value.clone(), bare.enabled), (None, None));
+        let mode = features.features.iter().find(|f| f.key == "videoMode").unwrap();
+        assert_eq!(mode.options.len(), 3);
+
+        let media = parse_media_list(&fixture("real_fw420/media_list.json")).unwrap();
+        assert_eq!(media.len(), 3);
+        assert_eq!(media[0].media_type, MediaType::Video);
+        assert!(media[0].has_fit);
+        assert_eq!(media[0].timestamp, Some(1_613_751_858));
+        assert_eq!(media[1].media_type, MediaType::Photo);
+        assert_eq!(media[1].lens_mode.as_deref(), Some("frontLensOnly"));
+        assert!(media[1].thumbnail_url.as_deref().unwrap().ends_with(".BMP"));
+        assert!(!media[1].has_fit);
     }
 
     #[test]

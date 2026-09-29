@@ -19,6 +19,14 @@ pub enum AppError {
     #[error("No camera is connected")]
     NotConnected,
 
+    /// A web server answered, but not like a VIRB (e.g. a router's page).
+    #[error("The device at {address} does not respond like a Garmin VIRB camera")]
+    NotACamera {
+        address: String,
+        #[source]
+        source: CameraError,
+    },
+
     #[error("\"{name}\" has no {what} available on the camera")]
     MissingResource { name: String, what: &'static str },
 
@@ -38,6 +46,7 @@ impl AppError {
         match self {
             Self::Camera(e) => e.kind(),
             Self::NotConnected => "notConnected",
+            Self::NotACamera { .. } => "notACamera",
             Self::MissingResource { .. } => "missingResource",
             Self::Filesystem { .. } => "filesystem",
             Self::Settings(_) => "settings",
@@ -47,6 +56,9 @@ impl AppError {
     pub fn detail(&self) -> Option<String> {
         match self {
             Self::Camera(e) => e.detail(),
+            Self::NotACamera { source, .. } => {
+                Some(format!("{source}{}", source.detail().map(|d| format!(": {d}")).unwrap_or_default()))
+            }
             Self::Filesystem { source, .. } => Some(source.to_string()),
             _ => None,
         }

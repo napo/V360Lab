@@ -30,6 +30,9 @@ pub struct VirbClientConfig {
     pub connect_timeout: Duration,
     /// Total time allowed for an API command or small resource fetch.
     pub command_timeout: Duration,
+    /// `mediaList` is much slower: a full card returns hundreds of KB
+    /// (about 4 s for ~1000 files on firmware 4.20).
+    pub media_list_timeout: Duration,
     /// Maximum silence while streaming a download (no total limit, since
     /// 360 videos can be several gigabytes).
     pub transfer_read_timeout: Duration,
@@ -40,6 +43,7 @@ impl Default for VirbClientConfig {
         Self {
             connect_timeout: Duration::from_secs(3),
             command_timeout: Duration::from_secs(10),
+            media_list_timeout: Duration::from_secs(60),
             transfer_read_timeout: Duration::from_secs(30),
         }
     }
@@ -96,6 +100,10 @@ impl GarminVirb360Client {
     /// Sends a command and returns the validated JSON response.
     async fn execute(&self, command: VirbCommand) -> Result<Value, CameraError> {
         let name = command.name();
+        let timeout = match command {
+            VirbCommand::MediaList => self.config.media_list_timeout,
+            _ => self.config.command_timeout,
+        };
         let started = Instant::now();
         log::debug!("VIRB -> {name} ({})", self.endpoint);
 
@@ -103,14 +111,15 @@ impl GarminVirb360Client {
             .http
             .post(self.endpoint.clone())
             .json(&command.payload())
+            .timeout(timeout)
             .send()
             .await
-            .map_err(|e| self.transport_error(&e, self.config.command_timeout))?;
+            .map_err(|e| self.transport_error(&e, timeout))?;
         let status = response.status();
         let body = response
             .text()
             .await
-            .map_err(|e| self.transport_error(&e, self.config.command_timeout))?;
+            .map_err(|e| self.transport_error(&e, timeout))?;
 
         log::debug!(
             "VIRB <- {name}: HTTP {} in {} ms, {} bytes: {}",

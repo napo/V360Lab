@@ -20,6 +20,7 @@ fn client_for(server: &MockServer) -> GarminVirb360Client {
         connect_timeout: Duration::from_secs(2),
         command_timeout: Duration::from_millis(500),
         transfer_read_timeout: Duration::from_millis(500),
+        media_list_timeout: Duration::from_millis(1500),
     };
     GarminVirb360Client::with_config(&server.uri(), config).unwrap()
 }
@@ -110,6 +111,21 @@ async fn slow_camera_times_out() {
     .await;
     let err = client_for(&server).status().await.unwrap_err();
     assert!(matches!(err, CameraError::Timeout { .. }), "{err:?}");
+}
+
+#[tokio::test]
+async fn media_list_gets_a_longer_timeout() {
+    let server = MockServer::start().await;
+    mount_command(
+        &server,
+        "mediaList",
+        ResponseTemplate::new(200)
+            .set_body_json(fixture("media_list.json"))
+            .set_delay(Duration::from_millis(800)),
+    )
+    .await;
+    // Slower than the command timeout, faster than the media list timeout.
+    assert_eq!(client_for(&server).media_list().await.unwrap().len(), 3);
 }
 
 #[tokio::test]

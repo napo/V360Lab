@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::camera::address::DEFAULT_CAMERA_ADDRESS;
 use crate::camera::{
-    CameraClient, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList, MediaItem,
+    CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList, MediaItem,
 };
 use crate::downloads::{self, DownloadOptions, DownloadProgress, DownloadReport};
 use crate::error::AppError;
@@ -109,7 +109,15 @@ pub async fn connect_camera(
             Arc::new(GarminVirb360Client::new(&address)?)
         };
         log::info!("Connecting to {}", client.address());
-        let device_info = client.device_info().await?;
+        let device_info = client.device_info().await.map_err(|e| match e {
+            CameraError::UnsupportedCommand { .. }
+            | CameraError::MalformedResponse { .. }
+            | CameraError::Http { .. } => AppError::NotACamera {
+                address: client.address(),
+                source: e,
+            },
+            other => other.into(),
+        })?;
         let status = match client.status().await {
             Ok(status) => Some(status),
             Err(e) => {

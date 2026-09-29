@@ -1,0 +1,13 @@
+{
+  "deviceInfo": [
+    {
+      "model": "VIRB 360",
+      "firmware": 420,
+      "type": "primary",
+      "partNumber": "006-B2687-00",
+      "deviceId": 3300000001,
+      "macAddress": "00:00:00:00:00:00"
+    }
+  ],
+  "result": 1
+}
