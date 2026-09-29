@@ -46,6 +46,12 @@ pub trait CameraClient: Send + Sync {
     async fn delete_files(&self, media_urls: &[String]) -> Result<CommandAck, CameraError>;
     async fn media_list(&self) -> Result<Vec<MediaItem>, CameraError>;
 
+    /// Starts the camera's live preview and returns its RTSP URL, or `None`
+    /// when this camera has no live preview.
+    async fn live_preview_url(&self) -> Result<Option<String>, CameraError> {
+        Ok(None)
+    }
+
     /// Fetches a small resource (e.g. a thumbnail) into memory.
     /// Fails with [`CameraError::TooLarge`] above `max_bytes`.
     async fn fetch_resource(

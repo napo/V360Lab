@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use base64::Engine;
 use serde::Serialize;
+use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::activity::{ActivityEvent, Step, ACTIVITY_EVENT};
@@ -19,6 +20,7 @@ use crate::discovery::{self, DiscoveredCamera};
 use crate::downloads::{self, DownloadOptions, DownloadProgress, DownloadReport};
 use crate::error::AppError;
 use crate::library::{self, DeleteReport};
+use crate::preview::{self, PreviewFailure};
 use crate::settings::Settings;
 use crate::state::AppState;
 use crate::virb::{GarminVirb360Client, MockVirb360Client};
@@ -383,4 +385,35 @@ pub async fn download_fit(
     }
     .await;
     logged("download_fit", result)
+}
+
+/// Starts the live preview. Video is sent on `channel` as binary messages
+/// (see [`crate::preview`]); returns once the stream is playing.
+#[tauri::command]
+pub async fn start_preview(
+    state: State<'_, AppState>,
+    channel: Channel<InvokeResponseBody>,
+) -> CommandResult<()> {
+    let result = async {
+        let url = state
+            .camera()
+            .await?
+            .live_preview_url()
+            .await?
+            .ok_or(AppError::Preview {
+                reason: PreviewFailure::Unsupported,
+                detail: "this camera has no live preview".into(),
+            })?;
+        let sink: preview::Sink =
+            Box::new(move |message| channel.send(InvokeResponseBody::Raw(message)).is_ok());
+        state.preview.start(&url, sink).await
+    }
+    .await;
+    logged("start_preview", result)
+}
+
+#[tauri::command]
+pub async fn stop_preview(state: State<'_, AppState>) -> CommandResult<()> {
+    state.preview.stop().await;
+    Ok(())
 }

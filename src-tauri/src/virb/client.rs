@@ -231,6 +231,19 @@ impl CameraClient for GarminVirb360Client {
         models::parse_media_list(&self.execute(&VirbCommand::MediaList).await?)
     }
 
+    async fn live_preview_url(&self) -> Result<Option<String>, CameraError> {
+        let command = VirbCommand::LivePreview;
+        let response = self.execute(&command).await?;
+        match response.get("url").and_then(Value::as_str) {
+            Some(url) if url.starts_with("rtsp://") => Ok(Some(url.to_string())),
+            _ => Err(CameraError::MalformedResponse {
+                command: command.name().to_string(),
+                detail: "missing RTSP \"url\"".to_string(),
+                snippet: response.to_string(),
+            }),
+        }
+    }
+
     async fn fetch_resource(
         &self,
         url: &str,

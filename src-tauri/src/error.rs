@@ -13,6 +13,7 @@ use serde_json::{Map, Value};
 use thiserror::Error;
 
 use crate::camera::CameraError;
+use crate::preview::PreviewFailure;
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -42,6 +43,13 @@ pub enum AppError {
         path: PathBuf,
         #[source]
         source: std::io::Error,
+    },
+
+    /// The live preview could not start or stopped.
+    #[error("Live preview failed: {detail}")]
+    Preview {
+        reason: PreviewFailure,
+        detail: String,
     },
 
     /// `reason` is a stable code the UI translates.
@@ -86,6 +94,7 @@ impl AppError {
             Self::NotDeleted { .. } => "notDeleted",
             Self::Filesystem { .. } => "filesystem",
             Self::Settings { .. } => "settings",
+            Self::Preview { .. } => "preview",
         }
     }
 
@@ -110,6 +119,9 @@ impl AppError {
             Self::Settings { reason, .. } => {
                 params.insert("reason".into(), (*reason).into());
             }
+            Self::Preview { reason, .. } => {
+                params.insert("reason".into(), reason.code().into());
+            }
         }
         params
     }
@@ -125,6 +137,7 @@ impl AppError {
                     .unwrap_or_default()
             )),
             Self::Filesystem { source, .. } => Some(source.to_string()),
+            Self::Preview { detail, .. } => Some(detail.clone()),
             _ => None,
         }
     }

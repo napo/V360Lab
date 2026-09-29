@@ -12,6 +12,7 @@ pub mod discovery;
 pub mod downloads;
 pub mod error;
 pub mod library;
+pub mod preview;
 pub mod settings;
 pub mod state;
 pub mod telemetry;
@@ -91,6 +92,8 @@ pub fn run() {
             commands::fetch_thumbnail,
             commands::download_media,
             commands::download_fit,
+            commands::start_preview,
+            commands::stop_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running V360Lab");

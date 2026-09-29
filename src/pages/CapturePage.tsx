@@ -1,6 +1,7 @@
 import { ErrorBanner } from "../components/ErrorBanner";
 import { FeatureChips } from "../components/capture/FeatureChips";
 import { ShutterButton, type ShutterKind } from "../components/capture/ShutterButton";
+import { LivePreview } from "../components/preview/LivePreview";
 import type { Navigate } from "../components/navigation";
 import { useCamera } from "../hooks/useCamera";
 import { useI18n } from "../hooks/useI18n";
@@ -96,6 +97,8 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
           <span>{t("capture.free", { free: formatBytes(status.storageAvailableBytes) })}</span>
         )}
       </div>
+
+      <LivePreview />
 
       {modeFeature && (
         <div className="segmented segmented-large" role="group" aria-label={t("capture.mode")}>

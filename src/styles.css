@@ -1450,10 +1450,32 @@ details.panel:not([open]) > summary {
   /* Keep the shutter reachable above the bottom navigation. */
   .shutter-area {
     position: sticky;
-    bottom: calc(76px + env(safe-area-inset-bottom));
-    background: linear-gradient(to bottom, transparent, var(--bg) 30%);
-    margin: 0 -14px;
-    padding: 24px 14px 8px;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    z-index: 5;
+    flex-direction: row;
+    justify-content: center;
+    gap: 16px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 16px -8px rgba(0, 0, 0, 0.35);
+    margin: 0 -14px -24px;
+    padding: 10px 14px;
+  }
+
+  .shutter {
+    width: 72px;
+    height: 72px;
+    border-width: 4px;
+  }
+
+  .shutter-inner {
+    width: 56px;
+    height: 56px;
+  }
+
+  .shutter.active .shutter-inner {
+    width: 28px;
+    height: 28px;
   }
 
   .tabs button {
@@ -1467,5 +1489,83 @@ details.panel:not([open]) > summary {
 
   .media-thumb .thumbnail {
     aspect-ratio: 5 / 2;
+  }
+}
+
+/* ---------- Live preview ---------- */
+
+.live-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 640 / 368;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--border);
+}
+
+.preview-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preview-frame:fullscreen {
+  border: none;
+  border-radius: 0;
+}
+
+.preview-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #ffffff;
+  background: rgba(3, 9, 18, 0.55);
+  font-size: 14px;
+}
+
+.preview-live {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--record);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 760px) {
+  .live-preview {
+    margin: 0 -14px;
+  }
+
+  .preview-frame {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .preview-actions {
+    padding: 0 14px;
   }
 }

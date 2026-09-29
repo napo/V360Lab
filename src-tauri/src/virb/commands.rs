@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 /// Commands V360Lab sends to the camera.
 ///
-/// Other VIRB commands (e.g. `livePreview`, `locate`) are not used yet.
+/// Other VIRB commands (e.g. `locate`) are not used yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VirbCommand {
     DeviceInfo,
@@ -29,6 +29,9 @@ pub enum VirbCommand {
     DeleteFile {
         files: Vec<String>,
     },
+    /// Starts the live preview and returns its RTSP URL. Without
+    /// `streamType: "rtp"` firmware 4.20 answers `"result": 0`.
+    LivePreview,
 }
 
 impl VirbCommand {
@@ -45,6 +48,7 @@ impl VirbCommand {
             Self::MediaList => "mediaList",
             Self::UpdateFeature { .. } => "updateFeature",
             Self::DeleteFile { .. } => "deleteFile",
+            Self::LivePreview => "livePreview",
         }
     }
 
@@ -57,6 +61,7 @@ impl VirbCommand {
                 "value": value,
             }),
             Self::DeleteFile { files } => json!({ "command": self.name(), "files": files }),
+            Self::LivePreview => json!({ "command": self.name(), "streamType": "rtp" }),
             _ => json!({ "command": self.name() }),
         }
     }
