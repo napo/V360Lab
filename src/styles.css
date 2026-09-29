@@ -1,23 +1,31 @@
-/* V360Lab — technical, low-decoration interface. */
+/* V360Lab — technical interface in the colors of the V360Lab logo:
+   navy ink, electric blue, cyan and the red of the camera's recording LED. */
 
 :root {
-  --bg: #f4f6f8;
+  --brand-navy: #0a1a2f;
+  --brand-blue: #0072f5;
+  --brand-cyan: #00b4ff;
+  --brand-gradient: linear-gradient(135deg, var(--brand-cyan), var(--brand-blue));
+
+  --bg: #eef3f9;
   --surface: #ffffff;
-  --surface-alt: #eef1f4;
-  --border: #d6dce2;
-  --text: #17212b;
-  --text-muted: #5d6b78;
-  --accent: #1f8a7d;
+  --surface-alt: #e8eff8;
+  --border: #c8d6e8;
+  --text: var(--brand-navy);
+  --text-muted: #4a5f78;
+  --accent: var(--brand-blue);
   --accent-contrast: #ffffff;
-  --danger: #c0392b;
-  --danger-bg: #fbeceb;
-  --warning: #b7791f;
-  --ok: #2f855a;
-  --record: #d64541;
-  --sidebar-bg: #101820;
-  --sidebar-text: #c9d3dc;
-  --sidebar-active: #1d2b36;
-  --radius: 6px;
+  --danger: #c62828;
+  --danger-bg: #fdecec;
+  --warning: #a86200;
+  --ok: #1b7f4b;
+  --record: #e0283a;
+  --sidebar-bg: #050d1a;
+  --sidebar-text: #dbe7f5;
+  --sidebar-muted: #8fa6c2;
+  --sidebar-active: #0e2242;
+  --sidebar-border: #1a3558;
+  --radius: 8px;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
   color-scheme: light;
@@ -25,20 +33,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f151b;
-    --surface: #161f27;
-    --surface-alt: #1c2731;
-    --border: #2a3845;
-    --text: #e3e9ee;
-    --text-muted: #8b9aa7;
-    --accent: #3fb6a8;
-    --accent-contrast: #0b1a17;
-    --danger: #ef6b5e;
-    --danger-bg: #2a1716;
-    --warning: #e0a84a;
-    --ok: #5cc28a;
-    --sidebar-bg: #0a1015;
-    --sidebar-active: #18242e;
+    --bg: #030912;
+    --surface: #0a1628;
+    --surface-alt: #0f2038;
+    --border: #1c3456;
+    --text: #eef4fc;
+    --text-muted: #a3b8d2;
+    --accent: #2f8cff;
+    --accent-contrast: #ffffff;
+    --danger: #ff6b6b;
+    --danger-bg: #2a1116;
+    --warning: #ffb74d;
+    --ok: #4cd08a;
+    --sidebar-bg: #02070f;
+    --sidebar-active: #0d2140;
     color-scheme: dark;
   }
 }
@@ -125,12 +133,39 @@ code,
 
 .brand {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 16px;
-  color: #fff;
-  padding: 0 6px 18px;
+  justify-content: center;
+  padding: 0 4px 16px;
+}
+
+.brand img {
+  width: 100%;
+  max-width: 170px;
+  height: auto;
+}
+
+.brand-hero {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 18px;
+}
+
+.brand-hero img {
+  width: min(320px, 70vw);
+  height: auto;
+}
+
+.brand-hero .logo-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .brand-hero .logo-light {
+    display: none;
+  }
+
+  .brand-hero .logo-dark {
+    display: block;
+  }
 }
 
 .sidebar nav {
@@ -157,7 +192,7 @@ code,
 .nav-item.active {
   background: var(--sidebar-active);
   color: #fff;
-  box-shadow: inset 3px 0 0 #3fb6a8;
+  box-shadow: inset 3px 0 0 var(--brand-cyan);
 }
 
 .sidebar-footer {
@@ -166,17 +201,17 @@ code,
   flex-direction: column;
   gap: 6px;
   padding: 10px 6px 0;
-  border-top: 1px solid #22303b;
+  border-top: 1px solid var(--sidebar-border);
 }
 
 .sidebar-footer .btn-ghost {
   color: var(--sidebar-text);
-  border-color: #2c3b47;
+  border-color: var(--sidebar-border);
 }
 
 .sidebar-address {
   font-size: 11px;
-  color: #8b9aa7;
+  color: var(--sidebar-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -287,8 +322,8 @@ code,
 }
 
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--brand-gradient);
+  border-color: var(--brand-blue);
   color: var(--accent-contrast);
 }
 
@@ -411,7 +446,8 @@ select:focus-visible,
 }
 
 .badge-connected .badge-dot {
-  background: #3fb6a8;
+  background: var(--brand-cyan);
+  box-shadow: 0 0 6px var(--brand-cyan);
 }
 
 .badge-connecting .badge-dot {
@@ -468,7 +504,7 @@ select:focus-visible,
 
 .meter-fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--brand-gradient);
   transition: width 0.3s ease;
 }
 
@@ -684,13 +720,29 @@ select:focus-visible,
   }
 }
 
-.sidebar-language {
+/* Language selector on the dark sidebar: dark native popup and
+   high-contrast text in both the closed control and its options. */
+.sidebar-language-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin-top: 6px;
-  font-size: 12px;
-  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--sidebar-muted);
+}
+
+.sidebar-language {
+  color-scheme: dark;
+  font-size: 13px;
+  padding: 5px 8px;
   background: var(--sidebar-active);
-  color: var(--sidebar-text);
-  border-color: #2c3b47;
+  color: #ffffff;
+  border: 1px solid var(--sidebar-border);
+}
+
+.sidebar-language option {
+  background: var(--sidebar-bg);
+  color: #ffffff;
 }
 
 /* Capture panel */
@@ -718,7 +770,7 @@ select:focus-visible,
 }
 
 .segmented button.active {
-  background: var(--accent);
+  background: var(--brand-gradient);
   color: var(--accent-contrast);
   cursor: default;
 }

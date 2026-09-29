@@ -32,6 +32,10 @@ export function ConnectionPage() {
 
   return (
     <div className="page page-narrow">
+      <div className="brand-hero">
+        <img className="logo-light" src="/brand/logo-light-bg.png" alt={t("app.name")} />
+        <img className="logo-dark" src="/brand/logo-dark-bg.png" alt={t("app.name")} />
+      </div>
       <h1>{t("connect.title")}</h1>
       <Panel title={t("connect.addressPanel")}>
         <form className="form" onSubmit={submit}>

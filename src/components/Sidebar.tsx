@@ -16,8 +16,7 @@ export function Sidebar({ current, onNavigate }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <img src="/v360lab.svg" alt="" width={28} height={28} />
-        <span>{t("app.name")}</span>
+        <img src="/brand/logo-dark-bg.png" alt={t("app.name")} />
       </div>
       <nav>
         {PAGES.map((page) => (
@@ -43,7 +42,10 @@ export function Sidebar({ current, onNavigate }: SidebarProps) {
             </button>
           </>
         )}
-        <LanguageSelect className="sidebar-language" />
+        <label className="sidebar-language-field">
+          {t("sidebar.language")}
+          <LanguageSelect className="sidebar-language" />
+        </label>
       </div>
     </aside>
   );
