@@ -1,6 +1,14 @@
 # V360Lab
 
+[![CI](https://github.com/napo/V360Lab/actions/workflows/ci.yml/badge.svg)](https://github.com/napo/V360Lab/actions/workflows/ci.yml)
+[![Release](https://github.com/napo/V360Lab/actions/workflows/release.yml/badge.svg)](https://github.com/napo/V360Lab/releases/latest)
+[![Website](https://img.shields.io/badge/website-napo.github.io%2FV360Lab-0072f5)](https://napo.github.io/V360Lab/)
+
+![V360Lab](brand/v360lab-logo-light-bg.png)
+
 Open-source toolkit for Garmin VIRB 360 video, telemetry and computer vision.
+
+**Download:** Android (signed APK), Windows and Linux builds are on the [releases page](https://github.com/napo/V360Lab/releases/latest). The project website is [napo.github.io/V360Lab](https://napo.github.io/V360Lab/).
 
 > V360Lab is an independent open-source project and is not affiliated with, sponsored by, or endorsed by Garmin. Garmin and VIRB are trademarks of Garmin Ltd. or its subsidiaries.
 
@@ -170,6 +178,28 @@ npm test
 npm run typecheck
 ```
 
+## Releases and continuous integration
+
+Everything is built by GitHub Actions (`.github/workflows/`):
+
+| Workflow | Trigger | Output |
+|---|---|---|
+| `ci.yml` | every push to `main` and every pull request | typecheck, frontend tests, clippy, Rust tests |
+| `release.yml` | a pushed tag `v*` (or run manually) | GitHub release with Windows (`.msi`, `-setup.exe`), Linux (`.AppImage`, `.deb`, `.rpm`) and a signed Android APK |
+| `pages.yml` | changes in `site/` on `main` | the project website on GitHub Pages |
+
+To publish a new version, bump `version` in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, commit, then:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+### Android signing
+
+The APK is signed with a release key stored in the repository secrets `ANDROID_KEY_BASE64` (base64 of the keystore), `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. The workflow writes them to `src-tauri/gen/android/keystore.properties`, which is never committed. Without that file, local release builds are unsigned. **Keep a backup of the keystore:** updates to an installed app must be signed with the same key.
+
+The Android project is in `src-tauri/gen/android`. For local Android builds you need the Android SDK and NDK (`ANDROID_HOME`, `NDK_HOME`) and the Rust Android targets; see the [Tauri Android prerequisites](https://v2.tauri.app/start/prerequisites/#android).
+
 ## Building
 
 ```bash
@@ -234,6 +264,8 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 - No live preview (RTSP) and no deletion of files on the camera.
 - The capture date folder uses UTC.
 - Only one camera can be connected at a time.
+- On Android, downloads are saved in the app's private storage for now (not in the public Downloads folder).
+- Windows installers are not code-signed yet (SmartScreen may warn).
 
 ### Still to verify with a real camera
 

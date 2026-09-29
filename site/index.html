@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>V360Lab — Open tools for Garmin VIRB 360</title>
+    <meta
+      name="description"
+      content="Open-source toolkit for the Garmin VIRB 360: find and control the camera over Wi-Fi, capture video and photos, download media and FIT telemetry. Android, Windows and Linux."
+    />
+    <link rel="icon" type="image/png" href="assets/icon.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <img class="hero-logo" src="assets/logo-dark-bg.png" alt="V360Lab — Open tools for Garmin VIRB 360" />
+      <p class="tagline">
+        Control your Garmin VIRB 360 from your phone or computer, download media and FIT telemetry, and
+        prepare 360° data for geospatial and computer-vision work. Local only, no cloud.
+      </p>
+      <div class="cta">
+        <a class="button primary" href="#download">Download</a>
+        <a class="button" href="https://github.com/napo/V360Lab">Source on GitHub</a>
+      </div>
+    </header>
+
+    <main>
+      <section id="download">
+        <h2>Download</h2>
+        <p class="muted" id="release-info">Latest release from GitHub.</p>
+        <div class="downloads" id="downloads">
+          <div class="download" data-platform="android">
+            <a class="download-link" href="https://github.com/napo/V360Lab/releases/latest"><strong>Android</strong><span>Signed APK</span></a>
+          </div>
+          <div class="download" data-platform="windows">
+            <a class="download-link" href="https://github.com/napo/V360Lab/releases/latest"><strong>Windows</strong><span>Installer (.exe / .msi)</span></a>
+          </div>
+          <div class="download" data-platform="linux">
+            <a class="download-link" href="https://github.com/napo/V360Lab/releases/latest"><strong>Linux</strong><span>AppImage, .deb, .rpm</span></a>
+          </div>
+        </div>
+        <p class="muted small">
+          All builds are produced by GitHub Actions from the public source code. Windows builds are not
+          code-signed yet, so SmartScreen may warn on first launch. On Android, allow installation from your
+          browser or file manager.
+        </p>
+      </section>
+
+      <section>
+        <h2>What it does</h2>
+        <div class="features">
+          <article>
+            <h3>Find and connect</h3>
+            <p>
+              One button: tries the last camera, then the camera's own Wi-Fi, then scans your local network. The
+              camera is usually found in 2–3 seconds, with each step shown as it happens.
+            </p>
+          </article>
+          <article>
+            <h3>Capture</h3>
+            <p>
+              Switch between video and photo, choose 360°, front, rear or RAW lens mode, single, burst or
+              interval photos, and start or stop with one big shutter button.
+            </p>
+          </article>
+          <article>
+            <h3>Media and telemetry</h3>
+            <p>
+              Browse the card with thumbnails, download media together with FIT telemetry and the original
+              camera metadata, and delete files with verification.
+            </p>
+          </article>
+          <article>
+            <h3>All camera settings</h3>
+            <p>
+              Every setting the camera reports (white balance, ISO, exposure, microphone, GPS…) can be changed,
+              with readable names in English and Italian.
+            </p>
+          </article>
+          <article>
+            <h3>Local and private</h3>
+            <p>
+              V360Lab talks only to the camera on your network over its HTTP API. No Garmin account, no cloud
+              service, no data leaves your devices.
+            </p>
+          </article>
+          <article>
+            <h3>Open source</h3>
+            <p>
+              Built with Rust, Tauri, React and TypeScript, licensed under the GNU AGPL-3.0, and tested against a
+              real VIRB 360 (firmware 4.20).
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>Screenshots</h2>
+        <div class="screenshots">
+          <figure><img src="assets/screenshots/capture-video.jpg" alt="Video capture screen" loading="lazy" /><figcaption>Video capture</figcaption></figure>
+          <figure><img src="assets/screenshots/capture-photo.jpg" alt="Interval photo capture screen" loading="lazy" /><figcaption>Interval photos</figcaption></figure>
+          <figure><img src="assets/screenshots/media.jpg" alt="Media library" loading="lazy" /><figcaption>Media library</figcaption></figure>
+          <figure><img src="assets/screenshots/advanced.jpg" alt="Camera settings" loading="lazy" /><figcaption>Camera settings</figcaption></figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>Roadmap</h2>
+        <ol class="roadmap">
+          <li class="done"><strong>Camera toolkit</strong> — connection, capture control, media browser, media and FIT download</li>
+          <li><strong>Telemetry</strong> — FIT parsing, timeline, GPS track, synchronized video and map</li>
+          <li><strong>Computer vision</strong> — frame extraction, OpenCV, YOLO detection, SAM segmentation</li>
+          <li><strong>Geospatial outputs</strong> — georeferenced detections, GeoJSON / GeoParquet, MapLibre</li>
+          <li><strong>3D</strong> — depth estimation, photogrammetry, SfM, point clouds</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        V360Lab is an independent open-source project and is not affiliated with, sponsored by, or endorsed by
+        Garmin. Garmin and VIRB are trademarks of Garmin Ltd. or its subsidiaries.
+      </p>
+      <p>
+        <a href="https://github.com/napo/V360Lab">GitHub</a> ·
+        <a href="https://github.com/napo/V360Lab/blob/main/LICENSE">AGPL-3.0</a> ·
+        <a href="https://github.com/napo/V360Lab/releases">All releases</a>
+      </p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
