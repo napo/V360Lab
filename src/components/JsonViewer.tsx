@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../hooks/useI18n";
 
 interface JsonViewerProps {
   value: unknown;
@@ -7,7 +8,8 @@ interface JsonViewerProps {
 }
 
 /** Collapsible, copyable pretty-printed JSON for debugging camera responses. */
-export function JsonViewer({ value, title = "Raw JSON", defaultOpen = false }: JsonViewerProps) {
+export function JsonViewer({ value, title, defaultOpen = false }: JsonViewerProps) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const text = JSON.stringify(value, null, 2);
 
@@ -24,9 +26,9 @@ export function JsonViewer({ value, title = "Raw JSON", defaultOpen = false }: J
   return (
     <details className="json-viewer" open={defaultOpen}>
       <summary>
-        {title}
+        {title ?? t("common.rawJson")}
         <button type="button" className="btn btn-small btn-ghost" onClick={copy}>
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("common.copied") : t("common.copy")}
         </button>
       </summary>
       <pre>{text}</pre>

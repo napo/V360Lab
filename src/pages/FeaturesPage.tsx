@@ -3,6 +3,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { FeatureTable } from "../components/features/FeatureTable";
 import { JsonViewer } from "../components/JsonViewer";
 import { useAsyncResource } from "../hooks/useAsyncResource";
+import { useI18n } from "../hooks/useI18n";
 import { useSettings } from "../hooks/useSettings";
 import { cameraService } from "../services/cameraService";
 
@@ -10,6 +11,7 @@ import { cameraService } from "../services/cameraService";
 export function FeaturesPage() {
   const features = useAsyncResource(cameraService.features);
   const { debugMode } = useSettings();
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [showRaw, setShowRaw] = useState(false);
 
@@ -24,35 +26,37 @@ export function FeaturesPage() {
 
   return (
     <div className="page">
-      <h1>Camera Features</h1>
+      <h1>{t("features.title")}</h1>
       <div className="toolbar">
         <button type="button" className="btn" disabled={features.loading} onClick={() => void features.reload()}>
-          {features.loading ? "Loading…" : "Refresh"}
+          {features.loading ? t("common.loading") : t("common.refresh")}
         </button>
         <input
           type="search"
-          placeholder="Filter features…"
+          placeholder={t("features.filter")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <label className="checkbox">
           <input type="checkbox" checked={showRaw || debugMode} disabled={debugMode} onChange={(e) => setShowRaw(e.target.checked)} />
-          Show raw JSON
+          {t("features.showRaw")}
         </label>
         <span className="toolbar-spacer" />
         {features.data && (
-          <span className="muted small">{features.data.features.length} features reported</span>
+          <span className="muted small">
+            {t("features.count", { count: features.data.features.length })}
+          </span>
         )}
       </div>
       <p className="muted small">
-        Values are shown as reported by the camera. Editing settings is not supported yet.
+        {t("features.readOnly")}
       </p>
       {features.error && (
-        <ErrorBanner error={features.error} title="Could not load features" onRetry={() => void features.reload()} />
+        <ErrorBanner error={features.error} title={t("features.loadFailed")} onRetry={() => void features.reload()} />
       )}
       {features.data && <FeatureTable features={filtered} />}
       {features.data && (showRaw || debugMode) && (
-        <JsonViewer value={features.data.raw} title="Raw features response" defaultOpen />
+        <JsonViewer value={features.data.raw} title={t("features.raw")} defaultOpen />
       )}
     </div>
   );

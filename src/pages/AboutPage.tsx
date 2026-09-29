@@ -1,45 +1,44 @@
 import { Panel } from "../components/Panel";
 import { useAsyncResource } from "../hooks/useAsyncResource";
+import { useI18n } from "../hooks/useI18n";
+import type { TranslationKey } from "../i18n/types";
 import { settingsService } from "../services/settingsService";
+
+const ROADMAP: TranslationKey[] = [
+  "about.roadmap1",
+  "about.roadmap2",
+  "about.roadmap3",
+  "about.roadmap4",
+  "about.roadmap5",
+];
 
 export function AboutPage() {
   const info = useAsyncResource(settingsService.appInfo);
+  const { t } = useI18n();
+
+  const version = info.data
+    ? `${t("about.version", { version: info.data.version })}${info.data.debugBuild ? ` ${t("about.debugBuild")}` : ""}`
+    : info.error
+      ? t("about.versionUnavailable")
+      : "…";
 
   return (
     <div className="page page-narrow">
-      <h1>About V360Lab</h1>
-      <Panel title="V360Lab">
-        <p>
-          Open-source toolkit for Garmin VIRB 360 video, telemetry and computer vision.
-          V360Lab talks to the camera over its local HTTP API, downloads media and FIT telemetry,
-          and prepares data for geospatial and computer-vision processing.
-        </p>
-        <p className="mono small">
-          {info.data
-            ? `Version ${info.data.version}${info.data.debugBuild ? " (debug build)" : ""}`
-            : info.error
-              ? "Version unavailable"
-              : "…"}
-        </p>
-        <p>
-          Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). Everything runs
-          locally: no data is sent to external services.
-        </p>
+      <h1>{t("about.title")}</h1>
+      <Panel title={t("app.name")}>
+        <p>{t("about.intro")}</p>
+        <p className="mono small">{version}</p>
+        <p>{t("about.license")}</p>
       </Panel>
-      <Panel title="Roadmap">
+      <Panel title={t("about.roadmap")}>
         <ol className="hint-list">
-          <li>Camera connection, controls, media browser, media and FIT download (current)</li>
-          <li>FIT parsing, timeline, GPS track, synchronized video and map</li>
-          <li>Frame extraction, OpenCV processing, YOLO detection, SAM segmentation</li>
-          <li>Georeferenced detections, GeoJSON / GeoParquet export, MapLibre visualization</li>
-          <li>Depth estimation, photogrammetry, SfM, point clouds, 3D reconstruction</li>
+          {ROADMAP.map((key) => (
+            <li key={key}>{t(key)}</li>
+          ))}
         </ol>
       </Panel>
-      <Panel title="Disclaimer">
-        <p className="small">
-          V360Lab is an independent open-source project and is not affiliated with, sponsored by,
-          or endorsed by Garmin. Garmin and VIRB are trademarks of Garmin Ltd. or its subsidiaries.
-        </p>
+      <Panel title={t("about.disclaimerTitle")}>
+        <p className="small">{t("about.disclaimer")}</p>
       </Panel>
     </div>
   );

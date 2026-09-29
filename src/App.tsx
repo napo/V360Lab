@@ -5,6 +5,7 @@ import { CameraProvider } from "./context/CameraContext";
 import { DownloadsProvider } from "./context/DownloadsContext";
 import { SettingsProvider } from "./context/SettingsContext";
 import { useCamera } from "./hooks/useCamera";
+import { I18nProvider } from "./i18n/I18nContext";
 import { AboutPage } from "./pages/AboutPage";
 import { ConnectionPage } from "./pages/ConnectionPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -42,11 +43,13 @@ function Shell() {
 export default function App() {
   return (
     <SettingsProvider>
-      <CameraProvider>
-        <DownloadsProvider>
-          <Shell />
-        </DownloadsProvider>
-      </CameraProvider>
+      <I18nProvider>
+        <CameraProvider>
+          <DownloadsProvider>
+            <Shell />
+          </DownloadsProvider>
+        </CameraProvider>
+      </I18nProvider>
     </SettingsProvider>
   );
 }

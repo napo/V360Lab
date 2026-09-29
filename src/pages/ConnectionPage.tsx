@@ -2,12 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Panel } from "../components/Panel";
 import { useCamera } from "../hooks/useCamera";
+import { useI18n } from "../hooks/useI18n";
 import { useSettings } from "../hooks/useSettings";
 
 /** Shown instead of camera pages while no camera is connected. */
 export function ConnectionPage() {
   const { connection, connect } = useCamera();
   const { view } = useSettings();
+  const { t, tx } = useI18n();
   const [address, setAddress] = useState("");
   const [mock, setMock] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -21,6 +23,7 @@ export function ConnectionPage() {
   }, [view, initialized]);
 
   const connecting = connection.status === "connecting";
+  const defaultAddress = view?.defaultCameraAddress ?? "192.168.0.1";
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -29,16 +32,16 @@ export function ConnectionPage() {
 
   return (
     <div className="page page-narrow">
-      <h1>Connect to camera</h1>
-      <Panel title="Camera address">
+      <h1>{t("connect.title")}</h1>
+      <Panel title={t("connect.addressPanel")}>
         <form className="form" onSubmit={submit}>
           <label className="field">
-            <span>IP address or host name</span>
+            <span>{t("connect.addressLabel")}</span>
             <input
               className="mono"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder={view?.defaultCameraAddress ?? "192.168.0.1"}
+              placeholder={defaultAddress}
               disabled={connecting || mock}
               spellCheck={false}
               autoFocus
@@ -51,7 +54,7 @@ export function ConnectionPage() {
               onChange={(e) => setMock(e.target.checked)}
               disabled={connecting}
             />
-            Use simulated camera (mock mode, no network access)
+            {t("connect.useMock")}
           </label>
           <div className="form-actions">
             <button
@@ -59,30 +62,26 @@ export function ConnectionPage() {
               className="btn btn-primary"
               disabled={connecting || (!mock && !address.trim())}
             >
-              {connecting ? "Connecting…" : "Connect"}
+              {connecting ? t("connect.connecting") : t("connect.connect")}
             </button>
             <span className="muted">
-              {connecting && `Contacting ${connection.mock ? "mock camera" : connection.address}…`}
-              {connection.status === "disconnected" && "Not connected"}
+              {connecting &&
+                t("connect.contacting", {
+                  target: connection.mock ? t("connect.mockCamera") : connection.address,
+                })}
+              {connection.status === "disconnected" && t("connect.notConnected")}
             </span>
           </div>
         </form>
         {connection.status === "error" && (
-          <ErrorBanner error={connection.error} title="Connection failed" />
+          <ErrorBanner error={connection.error} title={t("connect.failed")} />
         )}
       </Panel>
-      <Panel title="Requirements">
+      <Panel title={t("connect.requirements")}>
         <ul className="hint-list">
-          <li>
-            Enable Wi-Fi on the VIRB 360 and join its network from this computer, or connect both
-            to the same local network.
-          </li>
-          <li>
-            When the camera acts as an access point it is usually reachable at{" "}
-            <code>{view?.defaultCameraAddress ?? "192.168.0.1"}</code>; on other networks check
-            your router for the camera's address.
-          </li>
-          <li>V360Lab only contacts the address entered here. No cloud service is used.</li>
+          <li>{t("connect.requirementWifi")}</li>
+          <li>{tx("connect.requirementAddress", { address: <code>{defaultAddress}</code> })}</li>
+          <li>{t("connect.requirementLocal")}</li>
         </ul>
       </Panel>
     </div>

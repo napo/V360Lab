@@ -25,6 +25,7 @@ V360Lab is a desktop toolkit that:
 - Download media, FIT telemetry and thumbnails, plus a `metadata.json` holding the original camera metadata
 - Mock camera mode for development without hardware
 - Error messages written for the user, with technical details available in debug mode
+- User interface in English and Italian (follows the system language by default; switchable from the sidebar or Settings)
 
 ## Architecture
 
@@ -59,7 +60,7 @@ The UI never talks to the camera directly. Every request, including thumbnails, 
 | `telemetry/` | FIT header validation; extension point for a future FIT decoder |
 | `settings.rs` | Persisted user settings (JSON in the app config directory) |
 | `commands.rs` | Tauri commands exposed to the UI |
-| `error.rs` | `AppError`, serialized to the UI as `{ kind, message, detail }` |
+| `error.rs` | `AppError`, serialized to the UI as `{ kind, message, detail, params }` |
 
 To support another 360 camera, implement `CameraClient` for it. Commands, downloads and the UI do not change.
 
@@ -72,10 +73,30 @@ To support another 360 camera, implement `CameraClient` for it. Commands, downlo
 | `hooks/` | `useCamera`, `useSettings`, `useDownloads`, `useAsyncResource`, `useThumbnail` |
 | `pages/` | Connection, Dashboard, Media, Camera Features, Settings, About |
 | `components/` | Reusable UI parts, grouped by feature |
+| `i18n/` | Translations (`en.ts`, `it.ts`), plural/placeholder handling, language context |
 | `types/` | TypeScript mirrors of the Rust models |
 | `utils/` | Formatting and error helpers |
 
 The connection is modelled explicitly as `disconnected | connecting | connected | error`. Camera status is polled from the app root, so it keeps updating whichever page is open.
+
+### Internationalization
+
+UI strings live in `src/i18n/`. `en.ts` is the reference dictionary; each other language must provide exactly the same keys, and TypeScript enforces this. Placeholders use `{name}`. Keys ending in `_one` / `_other` are plural forms chosen with `Intl.PluralRules`.
+
+The backend never produces user-facing text in a specific language:
+
+- errors carry a stable `kind` plus `params` (address, command, HTTP status…), translated by the UI as `errors.<kind>`. The English `message` is only a fallback;
+- download warnings carry a `code` (`fitFailed`, `thumbnailFailed`, `fitInvalid`) and a technical `detail`.
+
+The chosen language is stored in the settings (`language`: `en`, `it`, or `null` for the system language).
+
+To add a language:
+
+1. Copy `src/i18n/it.ts` to `src/i18n/<code>.ts` and translate it.
+2. Register it in `DICTIONARIES`, `LANGUAGES` and `isLanguage` in `src/i18n/translate.ts`, and in the `Language` type.
+3. Add the code to `SUPPORTED_LANGUAGES` in `src-tauri/src/settings.rs`.
+
+The test in `src/i18n/translate.test.ts` checks that every language has the same keys and placeholders as English.
 
 ### Downloaded file layout
 
@@ -89,7 +110,7 @@ The connection is modelled explicitly as `disconnected | connecting | connected 
       metadata.json              original camera metadata + download record
 ```
 
-`metadata.json` contains `cameraMetadata` (the media entry exactly as the camera returned it), a `normalized` view, the list of downloaded files and any warnings. Files are written as `*.part` and renamed only when complete. A media file that already exists with the expected size is kept and not downloaded again.
+`metadata.json` contains `cameraMetadata` (the media entry exactly as the camera returned it), a `normalized` view, the list of downloaded files and any warnings (`{code, detail}`). Files are written as `*.part` and renamed only when complete. A media file that already exists with the expected size is kept and not downloaded again.
 
 ## Development setup
 
@@ -129,7 +150,7 @@ cd src-tauri && cargo test
 # the smallest video with FIT and the smallest photo into a temp directory)
 V360LAB_CAMERA=192.168.0.1 cargo test --test real_camera -- --ignored --nocapture --test-threads=1
 
-# Frontend: formatting and error helpers
+# Frontend: formatting, error helpers, translations (keys, placeholders, plurals)
 npm test
 
 # Type checking

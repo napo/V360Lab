@@ -1,3 +1,4 @@
+import { useI18n } from "../../hooks/useI18n";
 import type { CameraFeature, JsonValue } from "../../types/camera";
 import { formatJsonValue } from "../../utils/format";
 
@@ -6,15 +7,16 @@ function sameValue(a: JsonValue, b: JsonValue): boolean {
 }
 
 export function FeatureTable({ features }: { features: CameraFeature[] }) {
+  const { t } = useI18n();
   return (
     <div className="table-wrapper">
       <table className="data-table">
         <thead>
           <tr>
-            <th>Feature</th>
-            <th>Current value</th>
-            <th>Available options</th>
-            <th>Enabled</th>
+            <th>{t("features.colFeature")}</th>
+            <th>{t("features.colValue")}</th>
+            <th>{t("features.colOptions")}</th>
+            <th>{t("features.colEnabled")}</th>
           </tr>
         </thead>
         <tbody>
@@ -50,7 +52,7 @@ export function FeatureTable({ features }: { features: CameraFeature[] }) {
                   <span className="muted">—</span>
                 ) : (
                   <span className={`tag ${feature.enabled ? "tag-on" : "tag-off"}`}>
-                    {feature.enabled ? "yes" : "no"}
+                    {feature.enabled ? t("common.yes") : t("common.no")}
                   </span>
                 )}
               </td>

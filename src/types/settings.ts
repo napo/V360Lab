@@ -6,6 +6,8 @@ export interface Settings {
   mockMode: boolean;
   debugMode: boolean;
   statusPollIntervalSecs: number;
+  /** "en" | "it"; null follows the system language. */
+  language: string | null;
 }
 
 export interface SettingsView {

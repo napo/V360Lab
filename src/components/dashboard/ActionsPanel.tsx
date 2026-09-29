@@ -1,9 +1,11 @@
 import { useCamera } from "../../hooks/useCamera";
+import { useI18n } from "../../hooks/useI18n";
 import { ErrorBanner } from "../ErrorBanner";
 import { Panel } from "../Panel";
 
 export function ActionsPanel() {
   const { status, pendingAction, actionError, refreshing, runAction, refreshAll } = useCamera();
+  const { t } = useI18n();
   const state = status?.recordingState ?? "unknown";
   const busy = pendingAction !== null;
 
@@ -14,7 +16,7 @@ export function ActionsPanel() {
   const canSnap = !busy && state !== "recording";
 
   return (
-    <Panel title="Actions">
+    <Panel title={t("actions.panel")}>
       <div className="action-grid">
         <button
           type="button"
@@ -22,7 +24,7 @@ export function ActionsPanel() {
           disabled={!canStart}
           onClick={() => void runAction("startRecording")}
         >
-          {pendingAction === "startRecording" ? "Starting…" : "Start recording"}
+          {pendingAction === "startRecording" ? t("actions.starting") : t("actions.start")}
         </button>
         <button
           type="button"
@@ -30,7 +32,7 @@ export function ActionsPanel() {
           disabled={!canStop}
           onClick={() => void runAction("stopRecording")}
         >
-          {pendingAction === "stopRecording" ? "Stopping…" : "Stop recording"}
+          {pendingAction === "stopRecording" ? t("actions.stopping") : t("actions.stop")}
         </button>
         <button
           type="button"
@@ -38,16 +40,14 @@ export function ActionsPanel() {
           disabled={!canSnap}
           onClick={() => void runAction("snapPicture")}
         >
-          {pendingAction === "snapPicture" ? "Capturing…" : "Take photo"}
+          {pendingAction === "snapPicture" ? t("actions.capturing") : t("actions.photo")}
         </button>
         <button type="button" className="btn btn-ghost" disabled={refreshing} onClick={() => void refreshAll()}>
-          Refresh status
+          {t("actions.refresh")}
         </button>
       </div>
-      {state === "unknown" && (
-        <p className="muted small">Recording state unknown: controls are not restricted.</p>
-      )}
-      {actionError && <ErrorBanner error={actionError} title="Command failed" />}
+      {state === "unknown" && <p className="muted small">{t("actions.unknownState")}</p>}
+      {actionError && <ErrorBanner error={actionError} title={t("actions.failed")} />}
     </Panel>
   );
 }

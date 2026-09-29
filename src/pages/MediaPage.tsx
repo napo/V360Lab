@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MediaTable } from "../components/media/MediaTable";
 import { useAsyncResource } from "../hooks/useAsyncResource";
+import { useI18n } from "../hooks/useI18n";
 import { useSettings } from "../hooks/useSettings";
 import { cameraService } from "../services/cameraService";
 import type { MediaType } from "../types/camera";
@@ -13,6 +14,7 @@ type Filter = "all" | MediaType;
 export function MediaPage() {
   const media = useAsyncResource(cameraService.mediaList);
   const { view } = useSettings();
+  const { t, tx } = useI18n();
   const [filter, setFilter] = useState<Filter>("all");
   const [options, setOptions] = useState<DownloadOptions>({ includeFit: true, includeThumbnail: true });
 
@@ -27,16 +29,20 @@ export function MediaPage() {
 
   return (
     <div className="page">
-      <h1>Media</h1>
+      <h1>{t("media.title")}</h1>
       <div className="toolbar">
         <button type="button" className="btn" disabled={media.loading} onClick={() => void media.reload()}>
-          {media.loading ? "Loading…" : "Refresh"}
+          {media.loading ? t("common.loading") : t("common.refresh")}
         </button>
-        <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Media type">
-          <option value="all">All media</option>
-          <option value="video">Videos</option>
-          <option value="photo">Photos</option>
-          <option value="other">Other</option>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as Filter)}
+          aria-label={t("media.filterLabel")}
+        >
+          <option value="all">{t("media.filterAll")}</option>
+          <option value="video">{t("media.filterVideo")}</option>
+          <option value="photo">{t("media.filterPhoto")}</option>
+          <option value="other">{t("media.filterOther")}</option>
         </select>
         <label className="checkbox">
           <input
@@ -44,7 +50,7 @@ export function MediaPage() {
             checked={options.includeFit}
             onChange={(e) => setOptions((o) => ({ ...o, includeFit: e.target.checked }))}
           />
-          Include FIT
+          {t("media.includeFit")}
         </label>
         <label className="checkbox">
           <input
@@ -52,21 +58,24 @@ export function MediaPage() {
             checked={options.includeThumbnail}
             onChange={(e) => setOptions((o) => ({ ...o, includeThumbnail: e.target.checked }))}
           />
-          Include thumbnail
+          {t("media.includeThumbnail")}
         </label>
         <span className="toolbar-spacer" />
         <span className="muted small">
-          {items.length} item{items.length === 1 ? "" : "s"} · {formatBytes(totalBytes)}
+          {t("media.count", { count: items.length, size: formatBytes(totalBytes) })}
         </span>
       </div>
       {view && (
         <p className="muted small">
-          Downloads are saved to <span className="mono">{view.effectiveDownloadDirectory}</span>{" "}
-          (change in Settings).
+          {tx("media.savedTo", {
+            directory: <span className="mono">{view.effectiveDownloadDirectory}</span>,
+          })}
         </p>
       )}
-      {media.error && <ErrorBanner error={media.error} title="Could not load media" onRetry={() => void media.reload()} />}
-      {media.data && items.length === 0 && !media.loading && <p className="empty">No media found on the camera.</p>}
+      {media.error && (
+        <ErrorBanner error={media.error} title={t("media.loadFailed")} onRetry={() => void media.reload()} />
+      )}
+      {media.data && items.length === 0 && !media.loading && <p className="empty">{t("media.empty")}</p>}
       {items.length > 0 && <MediaTable items={items} options={options} />}
     </div>
   );

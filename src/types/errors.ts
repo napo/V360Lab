@@ -6,4 +6,6 @@ export interface AppError {
   message: string;
   /** Technical details, shown only in debug mode. */
   detail: string | null;
+  /** Values for the translated message (address, command, status…). */
+  params?: Record<string, unknown>;
 }

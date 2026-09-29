@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { LanguageSelect } from "../components/LanguageSelect";
 import { Panel } from "../components/Panel";
+import { useI18n } from "../hooks/useI18n";
 import { useSettings } from "../hooks/useSettings";
 import { settingsService } from "../services/settingsService";
 import type { AppError } from "../types/errors";
@@ -9,17 +11,32 @@ import { toAppError } from "../utils/errors";
 
 export function SettingsPage() {
   const { view, error: loadError, save } = useSettings();
+  const { t } = useI18n();
   const [draft, setDraft] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
 
+  // Initialize the form once; later settings changes (e.g. the language,
+  // which is saved immediately) must not discard unsaved edits.
   useEffect(() => {
-    if (view) setDraft(view.settings);
-  }, [view]);
+    if (view && !draft) setDraft(view.settings);
+  }, [view, draft]);
 
-  if (loadError) return <div className="page"><ErrorBanner error={loadError} title="Could not load settings" /></div>;
-  if (!view || !draft) return <div className="page"><p className="muted">Loading settings…</p></div>;
+  if (loadError) {
+    return (
+      <div className="page">
+        <ErrorBanner error={loadError} title={t("settings.loadFailed")} />
+      </div>
+    );
+  }
+  if (!view || !draft) {
+    return (
+      <div className="page">
+        <p className="muted">{t("settings.loading")}</p>
+      </div>
+    );
+  }
 
   const update = (patch: Partial<Settings>) => {
     setDraft({ ...draft, ...patch });
@@ -28,7 +45,10 @@ export function SettingsPage() {
 
   const browse = async () => {
     try {
-      const dir = await settingsService.pickDirectory(draft.downloadDirectory ?? view.effectiveDownloadDirectory);
+      const dir = await settingsService.pickDirectory(
+        draft.downloadDirectory ?? view.effectiveDownloadDirectory,
+        t("settings.chooseDirectory"),
+      );
       if (dir) update({ downloadDirectory: dir });
     } catch (e) {
       setError(toAppError(e));
@@ -42,6 +62,8 @@ export function SettingsPage() {
     try {
       await save({
         ...draft,
+        // The language is managed by the selector above and saved on change.
+        language: view.settings.language,
         lastCameraAddress: draft.lastCameraAddress?.trim() || null,
         downloadDirectory: draft.downloadDirectory?.trim() || null,
       });
@@ -55,11 +77,17 @@ export function SettingsPage() {
 
   return (
     <div className="page page-narrow">
-      <h1>Settings</h1>
+      <h1>{t("settings.title")}</h1>
+      <Panel title={t("settings.languagePanel")}>
+        <label className="field field-inline">
+          <span>{t("settings.language")}</span>
+          <LanguageSelect includeSystem />
+        </label>
+      </Panel>
       <form className="form" onSubmit={submit}>
-        <Panel title="Camera">
+        <Panel title={t("settings.cameraPanel")}>
           <label className="field">
-            <span>Camera address (used to prefill the connection screen)</span>
+            <span>{t("settings.cameraAddress")}</span>
             <input
               className="mono"
               value={draft.lastCameraAddress ?? ""}
@@ -70,10 +98,10 @@ export function SettingsPage() {
           </label>
           <label className="checkbox">
             <input type="checkbox" checked={draft.mockMode} onChange={(e) => update({ mockMode: e.target.checked })} />
-            Mock mode by default (simulated camera for development)
+            {t("settings.mockDefault")}
           </label>
           <label className="field field-inline">
-            <span>Status refresh interval (seconds)</span>
+            <span>{t("settings.pollInterval")}</span>
             <input
               type="number"
               min={1}
@@ -84,9 +112,9 @@ export function SettingsPage() {
           </label>
         </Panel>
 
-        <Panel title="Downloads">
+        <Panel title={t("settings.downloadsPanel")}>
           <label className="field">
-            <span>Download directory</span>
+            <span>{t("settings.downloadDirectory")}</span>
             <div className="input-row">
               <input
                 className="mono"
@@ -96,34 +124,41 @@ export function SettingsPage() {
                 spellCheck={false}
               />
               <button type="button" className="btn" onClick={() => void browse()}>
-                Browse…
+                {t("settings.browse")}
               </button>
               <button type="button" className="btn btn-ghost" onClick={() => update({ downloadDirectory: null })}>
-                Default
+                {t("settings.default")}
               </button>
             </div>
           </label>
           <p className="muted small">
-            Files are organized as <code>YYYY-MM-DD/recording-name/</code> with the media file, FIT
-            telemetry, thumbnail and <code>metadata.json</code>.
+            <LayoutNote />
           </p>
         </Panel>
 
-        <Panel title="Developer">
+        <Panel title={t("settings.developerPanel")}>
           <label className="checkbox">
             <input type="checkbox" checked={draft.debugMode} onChange={(e) => update({ debugMode: e.target.checked })} />
-            Debug mode: show technical error details and raw camera JSON; verbose backend logging
+            {t("settings.debugMode")}
           </label>
         </Panel>
 
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? "Saving…" : "Save settings"}
+            {saving ? t("settings.saving") : t("settings.save")}
           </button>
-          {saved && <span className="ok small">Saved</span>}
+          {saved && <span className="ok small">{t("settings.saved")}</span>}
         </div>
-        {error && <ErrorBanner error={error} title="Could not save settings" />}
+        {error && <ErrorBanner error={error} title={t("settings.saveFailed")} />}
       </form>
     </div>
   );
+}
+
+function LayoutNote() {
+  const { tx } = useI18n();
+  return tx("settings.layout", {
+    pattern: <code>YYYY-MM-DD/recording-name/</code>,
+    metadata: <code>metadata.json</code>,
+  });
 }

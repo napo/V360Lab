@@ -1,16 +1,18 @@
+import type { TranslationKey } from "../i18n/types";
+
 export type PageId = "dashboard" | "media" | "features" | "settings" | "about";
 
 export interface PageDefinition {
   id: PageId;
-  label: string;
+  labelKey: TranslationKey;
   /** Pages that show the connection screen when no camera is connected. */
   requiresCamera: boolean;
 }
 
 export const PAGES: PageDefinition[] = [
-  { id: "dashboard", label: "Dashboard", requiresCamera: true },
-  { id: "media", label: "Media", requiresCamera: true },
-  { id: "features", label: "Camera Features", requiresCamera: true },
-  { id: "settings", label: "Settings", requiresCamera: false },
-  { id: "about", label: "About", requiresCamera: false },
+  { id: "dashboard", labelKey: "nav.dashboard", requiresCamera: true },
+  { id: "media", labelKey: "nav.media", requiresCamera: true },
+  { id: "features", labelKey: "nav.features", requiresCamera: true },
+  { id: "settings", labelKey: "nav.settings", requiresCamera: false },
+  { id: "about", labelKey: "nav.about", requiresCamera: false },
 ];

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDownloads } from "../../hooks/useDownloads";
+import { useI18n } from "../../hooks/useI18n";
 import { useSettings } from "../../hooks/useSettings";
 import type { MediaItem } from "../../types/camera";
 import type { DownloadOptions } from "../../types/downloads";
@@ -20,6 +21,7 @@ export function MediaRow({ item, options }: MediaRowProps) {
   const [expanded, setExpanded] = useState(false);
   const { downloads, start } = useDownloads();
   const { debugMode } = useSettings();
+  const { t } = useI18n();
   const download = downloads[item.id];
   const busy = download?.status === "downloading";
 
@@ -44,19 +46,19 @@ export function MediaRow({ item, options }: MediaRowProps) {
               type="button"
               className="btn btn-small btn-primary"
               disabled={busy || !item.url}
-              title={item.url ? undefined : "The camera reported no download URL"}
+              title={item.url ? undefined : t("media.noUrl")}
               onClick={() => void start(item, "media", options)}
             >
-              Download
+              {t("media.download")}
             </button>
             <button
               type="button"
               className="btn btn-small"
               disabled={busy || !item.hasFit}
-              title={item.hasFit ? "Download only the FIT telemetry file" : "No FIT file associated"}
+              title={item.hasFit ? t("media.fitOnly") : t("media.noFit")}
               onClick={() => void start(item, "fit", options)}
             >
-              FIT
+              {t("media.fit")}
             </button>
             <button
               type="button"
@@ -64,7 +66,7 @@ export function MediaRow({ item, options }: MediaRowProps) {
               aria-expanded={expanded}
               onClick={() => setExpanded((v) => !v)}
             >
-              {expanded ? "Hide" : "Details"}
+              {expanded ? t("media.hide") : t("media.details")}
             </button>
           </div>
           <DownloadStatus state={download} />
@@ -75,14 +77,14 @@ export function MediaRow({ item, options }: MediaRowProps) {
           <td colSpan={COLUMN_COUNT}>
             <KeyValueList
               items={[
-                { label: "Media URL", value: item.url, mono: true },
-                { label: "Low-res preview URL", value: item.lowResUrl, mono: true },
-                { label: "Thumbnail URL", value: item.thumbnailUrl, mono: true },
-                { label: "FIT URL", value: item.fitUrl, mono: true },
-                { label: "Timestamp (UTC)", value: item.dateTime, mono: true },
+                { label: t("media.mediaUrl"), value: item.url, mono: true },
+                { label: t("media.lowResUrl"), value: item.lowResUrl, mono: true },
+                { label: t("media.thumbnailUrl"), value: item.thumbnailUrl, mono: true },
+                { label: t("media.fitUrl"), value: item.fitUrl, mono: true },
+                { label: t("media.timestampUtc"), value: item.dateTime, mono: true },
               ]}
             />
-            <JsonViewer value={item.raw} title="Camera metadata" defaultOpen={debugMode} />
+            <JsonViewer value={item.raw} title={t("media.cameraMetadata")} defaultOpen={debugMode} />
           </td>
         </tr>
       )}

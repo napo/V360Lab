@@ -1,5 +1,7 @@
 import { useCamera } from "../hooks/useCamera";
+import { useI18n } from "../hooks/useI18n";
 import { ConnectionBadge } from "./ConnectionBadge";
+import { LanguageSelect } from "./LanguageSelect";
 import { PAGES, type PageId } from "./navigation";
 
 interface SidebarProps {
@@ -9,12 +11,13 @@ interface SidebarProps {
 
 export function Sidebar({ current, onNavigate }: SidebarProps) {
   const { connection, disconnect } = useCamera();
+  const { t } = useI18n();
 
   return (
     <aside className="sidebar">
       <div className="brand">
         <img src="/v360lab.svg" alt="" width={28} height={28} />
-        <span>V360Lab</span>
+        <span>{t("app.name")}</span>
       </div>
       <nav>
         {PAGES.map((page) => (
@@ -24,7 +27,7 @@ export function Sidebar({ current, onNavigate }: SidebarProps) {
             className={`nav-item ${page.id === current ? "active" : ""}`}
             onClick={() => onNavigate(page.id)}
           >
-            {page.label}
+            {t(page.labelKey)}
           </button>
         ))}
       </nav>
@@ -36,10 +39,11 @@ export function Sidebar({ current, onNavigate }: SidebarProps) {
               {connection.address}
             </div>
             <button type="button" className="btn btn-small btn-ghost" onClick={() => void disconnect()}>
-              Disconnect
+              {t("sidebar.disconnect")}
             </button>
           </>
         )}
+        <LanguageSelect className="sidebar-language" />
       </div>
     </aside>
   );

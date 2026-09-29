@@ -9,11 +9,17 @@ export interface DownloadedFile {
   skipped: boolean;
 }
 
+/** Non-fatal problem; `code` is translated, `detail` is technical English. */
+export interface DownloadWarning {
+  code: string;
+  detail: string;
+}
+
 export interface DownloadReport {
   itemId: string;
   directory: string;
   files: DownloadedFile[];
-  warnings: string[];
+  warnings: DownloadWarning[];
 }
 
 export interface DownloadProgress {

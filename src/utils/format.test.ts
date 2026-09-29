@@ -50,7 +50,7 @@ describe("error normalization", () => {
   it("keeps backend errors and wraps others", () => {
     const backend = { kind: "timeout", message: "Camera did not respond", detail: null };
     expect(isAppError(backend)).toBe(true);
-    expect(toAppError(backend)).toEqual(backend);
+    expect(toAppError(backend)).toEqual({ ...backend, params: {} });
     expect(toAppError("boom")).toEqual({ kind: "internal", message: "boom", detail: null });
     expect(toAppError(new Error("bad")).message).toBe("bad");
   });

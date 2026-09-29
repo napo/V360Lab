@@ -683,3 +683,12 @@ select:focus-visible,
     gap: 2px;
   }
 }
+
+.sidebar-language {
+  margin-top: 6px;
+  font-size: 12px;
+  padding: 4px 6px;
+  background: var(--sidebar-active);
+  color: var(--sidebar-text);
+  border-color: #2c3b47;
+}

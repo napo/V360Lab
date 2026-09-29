@@ -8,12 +8,12 @@ export const settingsService = {
   appInfo: () => call<AppInfo>("app_info"),
 
   /** Native folder picker; resolves to null when cancelled. */
-  pickDirectory: async (current: string | null): Promise<string | null> => {
+  pickDirectory: async (current: string | null, title: string): Promise<string | null> => {
     const selected = await open({
       directory: true,
       multiple: false,
       defaultPath: current ?? undefined,
-      title: "Choose download directory",
+      title,
     });
     return typeof selected === "string" ? selected : null;
   },

@@ -12,7 +12,12 @@ export function isAppError(value: unknown): value is AppError {
 /** Normalizes anything thrown by `invoke` (or elsewhere) into an AppError. */
 export function toAppError(error: unknown): AppError {
   if (isAppError(error)) {
-    return { kind: error.kind, message: error.message, detail: error.detail ?? null };
+    return {
+      kind: error.kind,
+      message: error.message,
+      detail: error.detail ?? null,
+      params: error.params ?? {},
+    };
   }
   if (error instanceof Error) {
     return { kind: "internal", message: error.message, detail: error.stack ?? null };
