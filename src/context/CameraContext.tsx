@@ -31,6 +31,8 @@ export interface CameraContextValue {
   status: CameraStatus | null;
   statusError: AppError | null;
   statusUpdatedAt: Date | null;
+  /** Mode from the `shootingMode` feature, for firmware without `mode` in status. */
+  shootingMode: string | null;
   refreshing: boolean;
   pendingAction: CameraAction | null;
   actionError: AppError | null;
@@ -53,6 +55,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<CameraStatus | null>(null);
   const [statusError, setStatusError] = useState<AppError | null>(null);
   const [statusUpdatedAt, setStatusUpdatedAt] = useState<Date | null>(null);
+  const [shootingMode, setShootingMode] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingAction, setPendingAction] = useState<CameraAction | null>(null);
   const [actionError, setActionError] = useState<AppError | null>(null);
@@ -103,6 +106,17 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     }
   }, [applyStatus]);
 
+  // The features request is slow (~2 s), so it is not part of status polling.
+  const loadShootingMode = useCallback(async () => {
+    try {
+      const { features } = await cameraService.features();
+      const feature = features.find((f) => f.key === "shootingMode");
+      setShootingMode(typeof feature?.value === "string" ? feature.value : null);
+    } catch {
+      setShootingMode(null);
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
     try {
       setDeviceInfo(await cameraService.deviceInfo());
@@ -110,7 +124,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       setStatusError(toAppError(e));
     }
     await refreshStatus();
-  }, [refreshStatus]);
+    void loadShootingMode();
+  }, [refreshStatus, loadShootingMode]);
 
   const connect = useCallback(
     async (address: string, mock: boolean) => {
@@ -123,11 +138,12 @@ export function CameraProvider({ children }: { children: ReactNode }) {
         applyStatus(info.status);
         setConnection({ status: "connected", kind: info.kind, address: info.address });
         void reloadSettings();
+        void loadShootingMode();
       } catch (e) {
         setConnection({ status: "error", error: toAppError(e), address, mock });
       }
     },
-    [applyStatus, reloadSettings],
+    [applyStatus, reloadSettings, loadShootingMode],
   );
 
   const disconnect = useCallback(async () => {
@@ -139,6 +155,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       setStatus(null);
       setStatusError(null);
       setStatusUpdatedAt(null);
+      setShootingMode(null);
       clearThumbnailCache();
     }
   }, []);
@@ -192,6 +209,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       status,
       statusError,
       statusUpdatedAt,
+      shootingMode,
       refreshing,
       pendingAction,
       actionError,
@@ -207,6 +225,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       status,
       statusError,
       statusUpdatedAt,
+      shootingMode,
       refreshing,
       pendingAction,
       actionError,

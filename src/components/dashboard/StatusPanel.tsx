@@ -6,6 +6,7 @@ import {
   formatCoordinate,
   formatDuration,
   formatPercent,
+  formatShootingMode,
   storageUsedFraction,
 } from "../../utils/format";
 import { ErrorBanner } from "../ErrorBanner";
@@ -21,7 +22,7 @@ const RECORDING_LABELS: Record<RecordingState, string> = {
 };
 
 export function StatusPanel() {
-  const { status, statusError, statusUpdatedAt, refreshing } = useCamera();
+  const { status, statusError, statusUpdatedAt, shootingMode, refreshing } = useCamera();
   const { debugMode } = useSettings();
 
   const battery = status?.batteryLevel ?? null;
@@ -49,7 +50,7 @@ export function StatusPanel() {
               </span>
             ),
           },
-          { label: "Mode", value: status?.mode },
+          { label: "Mode", value: status?.mode ?? formatShootingMode(shootingMode) },
           {
             label: "Battery",
             value:

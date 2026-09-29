@@ -56,6 +56,15 @@ export function formatJsonValue(value: JsonValue | undefined): string {
   return JSON.stringify(value);
 }
 
+/**
+ * Camera mode for display. Firmware 4.20 has no `mode` in status; the
+ * `shootingMode` feature reports e.g. "videoShootingMode" instead.
+ */
+export function formatShootingMode(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return value.replace(/ShootingMode$/, "") || value;
+}
+
 /** Fraction in [0, 1] of used storage, or null if unknown. */
 export function storageUsedFraction(
   total: number | null | undefined,

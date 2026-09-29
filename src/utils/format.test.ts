@@ -5,6 +5,7 @@ import {
   formatDuration,
   formatJsonValue,
   formatPercent,
+  formatShootingMode,
   storageUsedFraction,
 } from "./format";
 import { isAppError, toAppError } from "./errors";
@@ -30,6 +31,12 @@ describe("format helpers", () => {
     expect(formatJsonValue({ a: 1 })).toBe('{"a":1}');
     expect(formatJsonValue(null)).toBe(EMPTY);
     expect(formatPercent(82.4)).toBe("82%");
+  });
+
+  it("formats shooting modes", () => {
+    expect(formatShootingMode("videoShootingMode")).toBe("video");
+    expect(formatShootingMode("photo")).toBe("photo");
+    expect(formatShootingMode(null)).toBeNull();
   });
 
   it("computes storage usage", () => {

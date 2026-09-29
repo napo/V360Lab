@@ -133,7 +133,6 @@ impl CameraClient for MockVirb360Client {
             "gpsLatitude": 46.0664,
             "gpsLongitude": 11.1257,
             "gpsSatelliteFix": 1,
-            "mode": "video",
             "recordingTime": recording_secs.unwrap_or(0),
             "recordingTimeRemaining": available / 45_000_000,
             "state": if recording_secs.is_some() { "recording" } else { "idle" },
@@ -305,6 +304,11 @@ fn photo_entry(index: u32, date: i64) -> Value {
 fn mock_features() -> Value {
     json!({
         "features": [
+            {
+                "feature": "shootingMode", "type": 1, "enabled": 1,
+                "value": "videoShootingMode",
+                "options": ["photoShootingMode", "videoShootingMode"]
+            },
             {
                 "feature": "videoMode", "description": "Video Mode", "type": 1,
                 "value": "5.7K 30fps",
