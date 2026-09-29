@@ -8,10 +8,13 @@
 //! - [`models`]: tolerant parsing of responses into [`crate::camera`] models.
 //! - [`errors`]: mapping of transport/protocol failures to typed errors.
 //! - [`client`]: [`GarminVirb360Client`], the `CameraClient` implementation.
+//! - [`mock`]: [`MockVirb360Client`], a simulated camera for development.
 
 pub mod client;
 pub mod commands;
 pub mod errors;
+pub mod mock;
 pub mod models;
 
 pub use client::{GarminVirb360Client, VirbClientConfig};
+pub use mock::MockVirb360Client;

@@ -1,6 +1,7 @@
 //! V360Lab native backend.
 
 pub mod camera;
+pub mod telemetry;
 pub mod virb;
 
 use serde::Serialize;
