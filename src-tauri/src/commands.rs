@@ -74,6 +74,7 @@ fn settings_view(state: &AppState) -> SettingsView {
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> SettingsView {
+    log::debug!("Frontend requested settings");
     settings_view(&state)
 }
 
