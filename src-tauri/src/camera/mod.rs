@@ -35,6 +35,15 @@ pub trait CameraClient: Send + Sync {
     async fn start_recording(&self) -> Result<CommandAck, CameraError>;
     async fn stop_recording(&self) -> Result<CommandAck, CameraError>;
     async fn snap_picture(&self) -> Result<CommandAck, CameraError>;
+    /// Ends a still capture sequence (photo time-lapse, burst).
+    async fn stop_still_recording(&self) -> Result<CommandAck, CameraError>;
+    /// Sets a camera feature and returns the updated feature list.
+    /// Fails if the camera does not report the requested value afterwards.
+    async fn update_feature(&self, key: &str, value: &str) -> Result<FeatureList, CameraError>;
+    /// Deletes a file on the camera. `media_url` is the URL exactly as
+    /// reported by the media list. A success response does not guarantee
+    /// the file existed; callers should verify with the media list.
+    async fn delete_file(&self, media_url: &str) -> Result<CommandAck, CameraError>;
     async fn media_list(&self) -> Result<Vec<MediaItem>, CameraError>;
 
     /// Fetches a small resource (e.g. a thumbnail) into memory.

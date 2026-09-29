@@ -16,6 +16,7 @@ use crate::camera::{
 };
 use crate::downloads::{self, DownloadOptions, DownloadProgress, DownloadReport};
 use crate::error::AppError;
+use crate::library::{self, DeleteReport};
 use crate::settings::Settings;
 use crate::state::AppState;
 use crate::virb::{GarminVirb360Client, MockVirb360Client};
@@ -213,6 +214,47 @@ pub async fn stop_recording(state: State<'_, AppState>) -> CommandResult<Command
 pub async fn snap_picture(state: State<'_, AppState>) -> CommandResult<CommandAck> {
     let result = async { Ok(state.camera().await?.snap_picture().await?) }.await;
     logged("snap_picture", result)
+}
+
+#[tauri::command]
+pub async fn stop_still_recording(state: State<'_, AppState>) -> CommandResult<CommandAck> {
+    let result = async { Ok(state.camera().await?.stop_still_recording().await?) }.await;
+    logged("stop_still_recording", result)
+}
+
+/// Changes a camera feature (mode, lens format, photo mode, …) and returns
+/// the updated feature list.
+#[tauri::command]
+pub async fn update_feature(
+    state: State<'_, AppState>,
+    key: String,
+    value: String,
+) -> CommandResult<FeatureList> {
+    let result = async {
+        log::info!("Setting camera feature {key} = {value}");
+        Ok(state.camera().await?.update_feature(&key, &value).await?)
+    }
+    .await;
+    logged("update_feature", result)
+}
+
+/// Deletes files on the camera and verifies the result against the media
+/// list. Per-item failures are reported in the result, not as an error.
+#[tauri::command]
+pub async fn delete_media(
+    state: State<'_, AppState>,
+    items: Vec<MediaItem>,
+) -> CommandResult<DeleteReport> {
+    let result = async {
+        let camera = state.camera().await?;
+        let report = library::delete_media(camera.as_ref(), &items).await;
+        for failure in &report.failed {
+            log::warn!("Could not delete {}: {}", failure.name, failure.error);
+        }
+        Ok(report)
+    }
+    .await;
+    logged("delete_media", result)
 }
 
 #[tauri::command]

@@ -9,6 +9,7 @@ pub mod camera;
 pub mod commands;
 pub mod downloads;
 pub mod error;
+pub mod library;
 pub mod settings;
 pub mod state;
 pub mod telemetry;
@@ -77,6 +78,9 @@ pub fn run() {
             commands::start_recording,
             commands::stop_recording,
             commands::snap_picture,
+            commands::stop_still_recording,
+            commands::update_feature,
+            commands::delete_media,
             commands::get_media_list,
             commands::fetch_thumbnail,
             commands::download_media,

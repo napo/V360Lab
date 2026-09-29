@@ -402,6 +402,30 @@ fn last_path_segment(url: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Verifies that the camera now reports `value` for feature `key`
+/// (the camera may accept a request without applying it).
+pub fn check_feature_value(list: &FeatureList, key: &str, value: &str) -> Result<(), CameraError> {
+    let Some(feature) = list.features.iter().find(|f| f.key == key) else {
+        return Err(CameraError::CommandFailed {
+            command: "updateFeature".into(),
+            response: format!("feature \"{key}\" is not reported by the camera"),
+        });
+    };
+    let current = match &feature.value {
+        Some(Value::String(s)) => s.clone(),
+        Some(other) => other.to_string(),
+        None => String::new(),
+    };
+    if current == value {
+        Ok(())
+    } else {
+        Err(CameraError::CommandFailed {
+            command: "updateFeature".into(),
+            response: format!("\"{key}\" is still \"{current}\" instead of \"{value}\""),
+        })
+    }
+}
+
 pub fn command_ack(command: &str, response: Value) -> CommandAck {
     CommandAck {
         command: command.to_string(),
@@ -634,6 +658,18 @@ mod tests {
         assert_eq!(media[1].lens_mode.as_deref(), Some("frontLensOnly"));
         assert!(media[1].thumbnail_url.as_deref().unwrap().ends_with(".BMP"));
         assert!(!media[1].has_fit);
+    }
+
+    #[test]
+    fn verifies_applied_feature_values() {
+        let list = parse_features(&fixture("real_fw420/features.json")).unwrap();
+        assert!(check_feature_value(&list, "units", "Metric").is_ok());
+        assert!(check_feature_value(&list, "gps", "1").is_ok());
+        assert!(matches!(
+            check_feature_value(&list, "units", "Statute"),
+            Err(CameraError::CommandFailed { .. })
+        ));
+        assert!(check_feature_value(&list, "noSuchFeature", "x").is_err());
     }
 
     #[test]

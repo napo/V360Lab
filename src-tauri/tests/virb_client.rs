@@ -277,3 +277,79 @@ fn rejects_invalid_address() {
         Some(CameraError::InvalidAddress { .. })
     ));
 }
+
+#[tokio::test]
+async fn update_feature_sends_value_and_verifies_it() {
+    let server = MockServer::start().await;
+    // Firmware 4.20 answers updateFeature with the full feature list.
+    Mock::given(method("POST"))
+        .and(path("/virb"))
+        .and(body_json(
+            json!({ "command": "updateFeature", "feature": "units", "value": "Metric" }),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("real_fw420/features.json")))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/virb"))
+        .and(body_json(
+            json!({ "command": "updateFeature", "feature": "units", "value": "Statute" }),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("real_fw420/features.json")))
+        .mount(&server)
+        .await;
+    let client = client_for(&server);
+
+    let list = client.update_feature("units", "Metric").await.unwrap();
+    assert_eq!(list.features.len(), 22);
+    // The camera answered but kept the old value: reported as a failure.
+    let err = client.update_feature("units", "Statute").await.unwrap_err();
+    assert!(matches!(err, CameraError::CommandFailed { .. }), "{err:?}");
+}
+
+#[tokio::test]
+async fn delete_and_stop_still_recording_send_expected_payloads() {
+    let server = MockServer::start().await;
+    let url = "http://192.168.0.1:80/DCIM/100_VIRB/V0010001.MP4";
+    Mock::given(method("POST"))
+        .and(path("/virb"))
+        .and(body_json(json!({ "command": "deleteFile", "file": url })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "result": 1 })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    mount_command(
+        &server,
+        "stopStillRecording",
+        ResponseTemplate::new(200).set_body_json(json!({ "result": 1 })),
+    )
+    .await;
+    let client = client_for(&server);
+    // The URL is sent exactly as reported, not re-anchored.
+    assert_eq!(client.delete_file(url).await.unwrap().command, "deleteFile");
+    assert_eq!(
+        client.stop_still_recording().await.unwrap().command,
+        "stopStillRecording"
+    );
+}
+
+#[tokio::test]
+async fn http_400_is_unsupported_command() {
+    // Firmware 4.20 answers unknown commands with an nginx 400 page.
+    let server = MockServer::start().await;
+    mount_command(
+        &server,
+        "stopStillRecording",
+        ResponseTemplate::new(400)
+            .set_body_string("<html><head><title>400 Bad Request</title></head></html>"),
+    )
+    .await;
+    let err = client_for(&server)
+        .stop_still_recording()
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, CameraError::UnsupportedCommand { .. }),
+        "{err:?}"
+    );
+}

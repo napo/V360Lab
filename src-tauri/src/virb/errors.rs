@@ -32,14 +32,15 @@ pub fn from_reqwest(err: &reqwest::Error, address: &str, timeout: Duration) -> C
     }
 }
 
-/// Rejects non-2xx responses. 404/405/501 are treated as "command not
-/// supported", which is how an HTTP server typically answers unknown routes.
+/// Rejects non-2xx responses. Firmware 4.20 answers an unknown command with
+/// HTTP 400; 404/405/501 are how other HTTP servers answer unknown routes.
+/// All of these are reported as "command not supported".
 pub fn check_http_status(command: &str, status: StatusCode, body: &str) -> Result<(), CameraError> {
     if status.is_success() {
         return Ok(());
     }
     match status.as_u16() {
-        404 | 405 | 501 => Err(CameraError::UnsupportedCommand {
+        400 | 404 | 405 | 501 => Err(CameraError::UnsupportedCommand {
             command: command.to_string(),
             detail: format!("HTTP {status}: {}", snippet(body, ERROR_SNIPPET_CHARS)),
         }),

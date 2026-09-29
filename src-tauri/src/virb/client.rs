@@ -98,7 +98,7 @@ impl GarminVirb360Client {
     }
 
     /// Sends a command and returns the validated JSON response.
-    async fn execute(&self, command: VirbCommand) -> Result<Value, CameraError> {
+    async fn execute(&self, command: &VirbCommand) -> Result<Value, CameraError> {
         let name = command.name();
         let timeout = match command {
             VirbCommand::MediaList => self.config.media_list_timeout,
@@ -135,6 +135,11 @@ impl GarminVirb360Client {
         Ok(value)
     }
 
+    async fn acknowledge(&self, command: VirbCommand) -> Result<CommandAck, CameraError> {
+        let response = self.execute(&command).await?;
+        Ok(models::command_ack(command.name(), response))
+    }
+
     fn transport_error(&self, err: &reqwest::Error, timeout: Duration) -> CameraError {
         errors::from_reqwest(err, self.base.as_str(), timeout)
     }
@@ -162,15 +167,15 @@ impl CameraClient for GarminVirb360Client {
     }
 
     async fn device_info(&self) -> Result<DeviceInfo, CameraError> {
-        models::parse_device_info(&self.execute(VirbCommand::DeviceInfo).await?)
+        models::parse_device_info(&self.execute(&VirbCommand::DeviceInfo).await?)
     }
 
     async fn status(&self) -> Result<CameraStatus, CameraError> {
-        models::parse_status(&self.execute(VirbCommand::Status).await?)
+        models::parse_status(&self.execute(&VirbCommand::Status).await?)
     }
 
     async fn features(&self) -> Result<FeatureList, CameraError> {
-        let list = models::parse_features(&self.execute(VirbCommand::Features).await?)?;
+        let list = models::parse_features(&self.execute(&VirbCommand::Features).await?)?;
         log::debug!(
             "VIRB features: {}",
             list.features
@@ -183,31 +188,47 @@ impl CameraClient for GarminVirb360Client {
     }
 
     async fn start_recording(&self) -> Result<CommandAck, CameraError> {
-        let command = VirbCommand::StartRecording;
-        Ok(models::command_ack(
-            command.name(),
-            self.execute(command).await?,
-        ))
+        self.acknowledge(VirbCommand::StartRecording).await
     }
 
     async fn stop_recording(&self) -> Result<CommandAck, CameraError> {
-        let command = VirbCommand::StopRecording;
-        Ok(models::command_ack(
-            command.name(),
-            self.execute(command).await?,
-        ))
+        self.acknowledge(VirbCommand::StopRecording).await
     }
 
     async fn snap_picture(&self) -> Result<CommandAck, CameraError> {
-        let command = VirbCommand::SnapPicture;
-        Ok(models::command_ack(
-            command.name(),
-            self.execute(command).await?,
-        ))
+        self.acknowledge(VirbCommand::SnapPicture).await
+    }
+
+    async fn stop_still_recording(&self) -> Result<CommandAck, CameraError> {
+        self.acknowledge(VirbCommand::StopStillRecording).await
+    }
+
+    async fn update_feature(&self, key: &str, value: &str) -> Result<FeatureList, CameraError> {
+        let response = self
+            .execute(&VirbCommand::UpdateFeature {
+                feature: key.to_string(),
+                value: value.to_string(),
+            })
+            .await?;
+        // Firmware 4.20 returns the updated list; others may only ack.
+        let list = if response.get("features").is_some() {
+            models::parse_features(&response)?
+        } else {
+            self.features().await?
+        };
+        models::check_feature_value(&list, key, value)?;
+        Ok(list)
+    }
+
+    async fn delete_file(&self, media_url: &str) -> Result<CommandAck, CameraError> {
+        self.acknowledge(VirbCommand::DeleteFile {
+            file: media_url.to_string(),
+        })
+        .await
     }
 
     async fn media_list(&self) -> Result<Vec<MediaItem>, CameraError> {
-        models::parse_media_list(&self.execute(VirbCommand::MediaList).await?)
+        models::parse_media_list(&self.execute(&VirbCommand::MediaList).await?)
     }
 
     async fn fetch_resource(

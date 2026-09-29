@@ -38,6 +38,8 @@ struct MockState {
     next_photo: u32,
     /// Media entries in raw VIRB format.
     media: Vec<Value>,
+    /// Feature list in raw VIRB format (modified by `update_feature`).
+    features: Value,
 }
 
 impl Default for MockVirb360Client {
@@ -66,6 +68,7 @@ impl MockVirb360Client {
                 next_video: 45,
                 next_photo: 4,
                 media,
+                features: mock_features(),
             }),
             latency,
         }
@@ -144,7 +147,25 @@ impl CameraClient for MockVirb360Client {
 
     async fn features(&self) -> Result<FeatureList, CameraError> {
         self.simulate_latency().await;
-        models::parse_features(&mock_features())
+        models::parse_features(&self.with_state(|s| s.features.clone()))
+    }
+
+    async fn update_feature(&self, key: &str, value: &str) -> Result<FeatureList, CameraError> {
+        self.simulate_latency().await;
+        let features = self.with_state(|s| {
+            let entry = s.features["features"]
+                .as_array_mut()
+                .and_then(|list| list.iter_mut().find(|f| f["feature"] == key))
+                .ok_or_else(|| Self::failed("updateFeature"))?;
+            if !mock_value_allowed(entry, value) {
+                return Err(Self::failed("updateFeature"));
+            }
+            entry["value"] = Value::from(value);
+            Ok(s.features.clone())
+        })?;
+        let list = models::parse_features(&features)?;
+        models::check_feature_value(&list, key, value)?;
+        Ok(list)
     }
 
     async fn start_recording(&self) -> Result<CommandAck, CameraError> {
@@ -197,6 +218,21 @@ impl CameraClient for MockVirb360Client {
             "snapPicture",
             json!({ "result": 1, "media": entry }),
         ))
+    }
+
+    async fn stop_still_recording(&self) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        Ok(models::command_ack(
+            "stopStillRecording",
+            json!({ "result": 1 }),
+        ))
+    }
+
+    async fn delete_file(&self, media_url: &str) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        // Like firmware 4.20: success even when the file does not exist.
+        self.with_state(|s| s.media.retain(|m| m["url"] != media_url));
+        Ok(models::command_ack("deleteFile", json!({ "result": 1 })))
     }
 
     async fn media_list(&self) -> Result<Vec<MediaItem>, CameraError> {
@@ -301,51 +337,22 @@ fn photo_entry(index: u32, date: i64) -> Value {
     })
 }
 
+/// Feature list captured from a real VIRB 360 (firmware 4.20).
 fn mock_features() -> Value {
-    json!({
-        "features": [
-            {
-                "feature": "shootingMode", "type": 1, "enabled": 1,
-                "value": "videoShootingMode",
-                "options": ["photoShootingMode", "videoShootingMode"]
-            },
-            {
-                "feature": "videoMode", "description": "Video Mode", "type": 1,
-                "value": "5.7K 30fps",
-                "options": ["5.7K 30fps", "4K 30fps", "Raw 2x 2.8K 30fps"],
-                "optionSummary": ["Stitched 5.7K (in-camera)", "Stitched 4K", "Unstitched dual lens"],
-                "enabled": 1
-            },
-            {
-                "feature": "lensMode", "description": "Lens Mode", "type": 1,
-                "value": "360", "options": ["360", "front", "rear"], "enabled": 1
-            },
-            {
-                "feature": "photoMode", "description": "Photo Mode", "type": 1,
-                "value": "single", "options": ["single", "burst", "timelapse"], "enabled": 1
-            },
-            {
-                "feature": "timeLapseInterval", "description": "Time-lapse Interval", "type": 1,
-                "value": "1s", "options": ["1s", "2s", "5s", "10s", "30s", "60s"], "enabled": 0
-            },
-            {
-                "feature": "gps", "description": "GPS", "type": 0, "value": "on", "enabled": 1
-            },
-            {
-                "feature": "voiceControl", "description": "Voice Control", "type": 0,
-                "value": "off", "enabled": 1
-            },
-            {
-                "feature": "recordingLight", "description": "Recording Light", "type": 0,
-                "value": "on", "enabled": 1
-            },
-            {
-                "feature": "spatialAudio", "description": "360 Audio", "type": 0,
-                "value": "on", "enabled": 1
-            }
-        ],
-        "result": 1
-    })
+    serde_json::from_str(include_str!("mock_features.json")).expect("valid mock features")
+}
+
+/// Mirrors the camera's constraints: choices must be one of the options,
+/// toggles are "0"/"1", actions (type 0) have no value.
+fn mock_value_allowed(feature: &Value, value: &str) -> bool {
+    match feature["type"].as_i64() {
+        Some(0) => false,
+        Some(2) => value == "0" || value == "1",
+        _ => match feature["options"].as_array() {
+            Some(options) => options.iter().any(|o| o == value),
+            None => !value.is_empty(),
+        },
+    }
 }
 
 fn thumbnail_svg(name: &str) -> String {
@@ -374,7 +381,7 @@ mod tests {
         let info = mock.device_info().await.unwrap();
         assert_eq!(info.model.as_deref(), Some("VIRB 360 (mock)"));
         let features = mock.features().await.unwrap();
-        assert!(features.features.len() >= 5);
+        assert_eq!(features.features.len(), 40);
         let media = mock.media_list().await.unwrap();
         assert_eq!(media.len(), 6);
         assert!(media.iter().any(|m| m.has_fit));
@@ -394,6 +401,43 @@ mod tests {
         assert!(mock.stop_recording().await.is_err());
         mock.snap_picture().await.unwrap();
         assert_eq!(mock.media_list().await.unwrap().len(), 8);
+    }
+
+    #[tokio::test]
+    async fn updates_features_like_the_camera() {
+        let mock = client();
+        let list = mock
+            .update_feature("shootingMode", "photoShootingMode")
+            .await
+            .unwrap();
+        let mode = list
+            .features
+            .iter()
+            .find(|f| f.key == "shootingMode")
+            .unwrap();
+        assert_eq!(mode.value, Some(json!("photoShootingMode")));
+        assert!(mock
+            .update_feature("video360Format", "sideways")
+            .await
+            .is_err());
+        assert!(mock.update_feature("gps", "2").await.is_err());
+        assert!(mock.update_feature("locateCamera", "1").await.is_err());
+        assert!(mock.update_feature("noSuchFeature", "1").await.is_err());
+        assert!(mock.update_feature("gps", "0").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn deletes_files() {
+        let mock = client();
+        let first = mock.media_list().await.unwrap().remove(0);
+        mock.delete_file(first.url.as_deref().unwrap())
+            .await
+            .unwrap();
+        let media = mock.media_list().await.unwrap();
+        assert_eq!(media.len(), 5);
+        assert!(media.iter().all(|m| m.id != first.id));
+        // Unknown files are "deleted" successfully, as on the real camera.
+        assert!(mock.delete_file("mock://virb360/nope.MP4").await.is_ok());
     }
 
     #[tokio::test]
