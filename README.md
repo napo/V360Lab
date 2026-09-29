@@ -201,7 +201,7 @@ Confirmed:
 - Downloads work end to end: MP4, FIT (valid FIT file), JPEG video thumbnails, 160×120 BMP photo thumbnails and JPG photos with EXIF/GPS. Sizes match `fileSize`.
 - `updateFeature` (`{"command":"updateFeature","feature":"<key>","value":"<value>"}`) returns the complete, updated feature list. V360Lab checks that the camera reports the requested value afterwards.
 - `deleteFile` takes a **`files` array** of URLs as listed by `mediaList`: `{"command":"deleteFile","files":["http://…/DCIM/102_VIRB/V0151058.MP4"]}`. With a single `file` string, or any other parameter name, the camera answers `"result": 1` **but deletes nothing**. V360Lab therefore deletes a whole selection in one request and then re-reads the media list to confirm each deletion.
-- Deleting a video also deletes its `.GLV` preview and `.THM` thumbnail, but **not its FIT file** in `GMetrix/`.
+- Deleting a video also deletes its `.GLV` preview and `.THM` thumbnail, but **not its FIT file** in `GMetrix/`. FIT files cannot be deleted over Wi-Fi: `deleteFile` answers `"result": 0` for them, whatever the path form.
 - `stopStillRecording` exists and returns `"result": 1` when idle.
 - `mediaDirList` returns the media directories (`2:/DCIM/100_VIRB`, …). V360Lab does not use it yet.
 - An unknown command gets **HTTP 400** with an nginx HTML page; this is reported as "unsupported command".
@@ -221,7 +221,7 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 - Tested with one VIRB 360 (firmware 4.20), including small media and FIT downloads; multi-GB downloads have not been tried yet.
 - Settings whose value is free text (`friendlyName`, `wifiTimeout`) and actions (`locateCamera`, `previewWhileRecording`) cannot be changed yet.
 - Settings are locked while recording.
-- FIT files of deleted videos remain on the camera (`GMetrix/`); V360Lab does not delete them yet.
+- FIT files of deleted videos remain on the camera (`GMetrix/`). Firmware 4.20 refuses to delete them over Wi-Fi; remove them from the SD card or USB storage.
 - On firmware 4.20 the dashboard mode comes from the `shootingMode` feature. It is read after connecting and on manual refresh, not on every status poll.
 - FIT files are downloaded and their header is validated, but not decoded.
 - No live preview (RTSP) and no deletion of files on the camera.
