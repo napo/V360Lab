@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { ActivityPanel } from "../components/ActivityPanel";
 import { DeleteResult } from "../components/media/DeleteResult";
 import { MediaTable } from "../components/media/MediaTable";
+import { useActivity } from "../hooks/useActivity";
 import { useAsyncResource } from "../hooks/useAsyncResource";
 import { useCamera } from "../hooks/useCamera";
 import { useDownloads } from "../hooks/useDownloads";
@@ -18,7 +20,21 @@ import { formatBytes } from "../utils/format";
 type Filter = "all" | MediaType;
 
 export function MediaPage() {
-  const media = useAsyncResource(cameraService.mediaList);
+  const loading = useActivity();
+  const deletion = useActivity();
+  const media = useAsyncResource(async () => {
+    loading.start();
+    loading.step("mediaRequest");
+    try {
+      const items = await cameraService.mediaList();
+      loading.step("mediaReceived", { count: items.length }, "success");
+      loading.finish();
+      return items;
+    } catch (e) {
+      loading.fail(toAppError(e));
+      throw e;
+    }
+  });
   const { view } = useSettings();
   const { status } = useCamera();
   const { start } = useDownloads();
@@ -82,8 +98,10 @@ export function MediaPage() {
     setDeleting(true);
     setDeleteReport(null);
     setDeleteError(null);
+    const activityId = deletion.start();
     try {
-      const report = await cameraService.deleteMedia(targets);
+      const report = await cameraService.deleteMedia(targets, activityId);
+      deletion.finish();
       setDeleteReport(report);
       setSelected((current) => {
         const next = new Set(current);
@@ -92,7 +110,9 @@ export function MediaPage() {
       });
       await media.reload();
     } catch (e) {
-      setDeleteError(toAppError(e));
+      const error = toAppError(e);
+      setDeleteError(error);
+      deletion.fail(error);
     } finally {
       setDeleting(false);
     }
@@ -165,11 +185,16 @@ export function MediaPage() {
           })}
         </p>
       )}
-      {deleting && <p className="muted small">{t("media.deleting")}</p>}
+      <ActivityPanel activity={deletion.state} title={t("activity.titleDelete")} />
       {deleteReport && <DeleteResult report={deleteReport} />}
-      {deleteError && <ErrorBanner error={deleteError} title={t("media.deleteTitle")} />}
+      {deleteError && !deletion.state.error && (
+        <ErrorBanner error={deleteError} title={t("media.deleteTitle")} />
+      )}
+      <ActivityPanel activity={loading.state} title={t("activity.titleMedia")} collapseWhenDone />
       {media.error && (
-        <ErrorBanner error={media.error} title={t("media.loadFailed")} onRetry={() => void media.reload()} />
+        <button type="button" className="btn btn-small" onClick={() => void media.reload()}>
+          {t("common.retry")}
+        </button>
       )}
       {media.data && items.length === 0 && !media.loading && <p className="empty">{t("media.empty")}</p>}
       {items.length > 0 && (

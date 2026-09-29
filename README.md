@@ -16,7 +16,8 @@ V360Lab is a desktop toolkit that:
 
 ## Current MVP capabilities
 
-- Connect to a VIRB 360 by IP address or host name, check that it is reachable, and remember the last address that worked
+- **Find and connect** with one button: V360Lab tries the last address used, then `192.168.0.1` (the camera's own Wi-Fi), then scans the local network. Firmware 4.20 does not announce itself via mDNS/Bonjour or SSDP. The scan checks port 80 on the /24 network and sends `deviceInfo` only to devices that answer; on a home network the camera is found in about 2–3 s. Manual entry of an IP address or host name remains available, and the last address that worked is remembered.
+- Step-by-step feedback for slow operations (search, connection, media list, deletion, settings): an animated indicator, elapsed time, and messages that appear as each step happens, with progress bars where useful
 - Read camera information: model, firmware, device ID, part number
 - Read camera status: recording state, mode, battery, storage, GPS position; refreshed in the background
 - Capture controls on the dashboard:
@@ -64,6 +65,9 @@ The UI never talks to the camera directly. Every request, including thumbnails, 
 | `virb/mock.rs` | `MockVirb360Client`: realistic simulated camera |
 | `downloads/` | Folder layout, file-name sanitization, media/FIT/thumbnail download, `metadata.json` |
 | `telemetry/` | FIT header validation; extension point for a future FIT decoder |
+| `discovery.rs` | Finding cameras: candidate addresses, then a scan of the local network |
+| `activity.rs` | Coded progress steps of slow operations, emitted to the UI as `activity` events |
+| `library.rs` | Multi-request media operations (deletion with verification) |
 | `settings.rs` | Persisted user settings (JSON in the app config directory) |
 | `commands.rs` | Tauri commands exposed to the UI |
 | `error.rs` | `AppError`, serialized to the UI as `{ kind, message, detail, params }` |
@@ -151,6 +155,9 @@ Running `npm run dev` alone serves the UI in a normal browser, but without the R
 # Rust: response parsing, malformed responses, HTTP error handling (mocked
 # with wiremock), downloads, settings, mock camera. No hardware needed.
 cd src-tauri && cargo test
+
+# Opt-in scan of the local network for a camera (no address needed)
+V360LAB_SCAN=1 cargo test --test real_camera scan -- --ignored --nocapture
 
 # Opt-in checks against a real camera (read-only on the camera; downloads
 # the smallest video with FIT and the smallest photo into a temp directory)

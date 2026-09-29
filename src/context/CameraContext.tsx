@@ -43,12 +43,13 @@ export interface CameraContextValue {
   /** Key of the feature currently being changed. */
   pendingFeature: string | null;
   featureError: AppError | null;
-  loadFeatures: () => Promise<void>;
+  loadFeatures: () => Promise<FeatureList | null>;
   updateFeature: (key: string, value: string) => Promise<void>;
   refreshing: boolean;
   pendingAction: CameraAction | null;
   actionError: AppError | null;
-  connect: (address: string, mock: boolean) => Promise<void>;
+  /** Connects and reports progress under `activityId`; resolves to success. */
+  connect: (address: string, mock: boolean, activityId: string) => Promise<boolean>;
   disconnect: () => Promise<void>;
   refreshStatus: () => Promise<void>;
   refreshAll: () => Promise<void>;
@@ -126,10 +127,13 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const loadFeatures = useCallback(async () => {
     setFeaturesLoading(true);
     try {
-      setFeatures(await cameraService.features());
+      const list = await cameraService.features();
+      setFeatures(list);
       setFeaturesError(null);
+      return list;
     } catch (e) {
       setFeaturesError(toAppError(e));
+      return null;
     } finally {
       setFeaturesLoading(false);
     }
@@ -164,19 +168,21 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   }, [refreshStatus, loadFeatures]);
 
   const connect = useCallback(
-    async (address: string, mock: boolean) => {
+    async (address: string, mock: boolean, activityId: string) => {
       setConnection({ status: "connecting", address, mock });
       setActionError(null);
       try {
-        const info = await cameraService.connect(address, mock);
+        const info = await cameraService.connect(address, mock, activityId);
         clearThumbnailCache();
         setDeviceInfo(info.deviceInfo);
         applyStatus(info.status);
         setConnection({ status: "connected", kind: info.kind, address: info.address });
         void reloadSettings();
         void loadFeatures();
+        return true;
       } catch (e) {
         setConnection({ status: "error", error: toAppError(e), address, mock });
+        return false;
       }
     },
     [applyStatus, reloadSettings, loadFeatures],

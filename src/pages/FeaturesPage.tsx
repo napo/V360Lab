@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { ActivityPanel } from "../components/ActivityPanel";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { FeatureTable } from "../components/features/FeatureTable";
 import { JsonViewer } from "../components/JsonViewer";
+import { useActivity } from "../hooks/useActivity";
 import { useCamera } from "../hooks/useCamera";
 import { useI18n } from "../hooks/useI18n";
 import { useSettings } from "../hooks/useSettings";
@@ -14,10 +16,28 @@ export function FeaturesPage() {
   const { t, lookup } = useI18n();
   const [query, setQuery] = useState("");
   const [showRaw, setShowRaw] = useState(false);
+  const activity = useActivity();
+  const { start, step, finish, fail } = activity;
 
+  const load = async () => {
+    start();
+    step("featuresRequest");
+    const list = await loadFeatures();
+    if (list) {
+      step("featuresReceived", { count: list.features.length }, "success");
+      finish();
+    }
+  };
+
+  // Failures are kept in the camera context; show them in the panel too.
+  const activityStatus = activity.state.status;
   useEffect(() => {
-    if (!features && !featuresLoading) void loadFeatures();
-    // Load once when the page opens without data.
+    if (featuresError && activityStatus === "running") fail(featuresError);
+  }, [featuresError, activityStatus, fail]);
+
+  // Load once when the page opens without data.
+  useEffect(() => {
+    if (!features && !featuresLoading) void load();
   }, []);
 
   const filtered = useMemo(() => {
@@ -35,7 +55,7 @@ export function FeaturesPage() {
     <div className="page">
       <h1>{t("features.title")}</h1>
       <div className="toolbar">
-        <button type="button" className="btn" disabled={featuresLoading} onClick={() => void loadFeatures()}>
+        <button type="button" className="btn" disabled={featuresLoading} onClick={() => void load()}>
           {featuresLoading ? t("common.loading") : t("common.refresh")}
         </button>
         <input
@@ -64,9 +84,7 @@ export function FeaturesPage() {
       {status?.recordingState === "recording" && (
         <p className="muted small">{t("capture.lockedWhileRecording")}</p>
       )}
-      {featuresError && (
-        <ErrorBanner error={featuresError} title={t("features.loadFailed")} onRetry={() => void loadFeatures()} />
-      )}
+      <ActivityPanel activity={activity.state} title={t("activity.titleFeatures")} collapseWhenDone />
       {featureError && <ErrorBanner error={featureError} title={t("capture.settingFailed")} />}
       {features && <FeatureTable features={filtered} />}
       {features && (showRaw || debugMode) && (

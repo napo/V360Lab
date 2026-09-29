@@ -5,6 +5,7 @@ import type {
   CommandAck,
   ConnectionInfo,
   DeviceInfo,
+  DiscoveredCamera,
   FeatureList,
   MediaItem,
 } from "../types/camera";
@@ -28,8 +29,9 @@ function shared<T>(request: () => Promise<T>): () => Promise<T> {
 
 /** Typed wrappers around the camera-related Tauri commands. */
 export const cameraService = {
-  connect: (address: string, mock: boolean) =>
-    call<ConnectionInfo>("connect_camera", { address, mock }),
+  connect: (address: string, mock: boolean, activityId: string) =>
+    call<ConnectionInfo>("connect_camera", { address, mock, activityId }),
+  discover: (activityId: string) => call<DiscoveredCamera[]>("discover_cameras", { activityId }),
   disconnect: () => call<void>("disconnect_camera"),
   activeConnection: () => call<ActiveConnection | null>("get_active_connection"),
   deviceInfo: shared(() => call<DeviceInfo>("get_device_info")),
@@ -38,7 +40,8 @@ export const cameraService = {
   mediaList: shared(() => call<MediaItem[]>("get_media_list")),
   updateFeature: (key: string, value: string) =>
     call<FeatureList>("update_feature", { key, value }),
-  deleteMedia: (items: MediaItem[]) => call<DeleteReport>("delete_media", { items }),
+  deleteMedia: (items: MediaItem[], activityId: string) =>
+    call<DeleteReport>("delete_media", { items, activityId }),
   thumbnail: (url: string) => call<string>("fetch_thumbnail", { url }),
   runAction: (action: CameraAction) => {
     const commands: Record<CameraAction, string> = {

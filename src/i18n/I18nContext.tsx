@@ -55,7 +55,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       t: (key, params) => translate(language, key, params),
       tx: (key, params) => translateNodes(language, key, params),
       errorMessage: (error) => describeError(language, error),
-      lookup: (key, params) => (hasKey(key) ? translate(language, key, params) : null),
+      lookup: (key, params) =>
+        hasKey(key) || hasKey(`${key}_other`) ? translate(language, key, params) : null,
       setLanguage,
     }),
     [language, preference, systemLanguage, setLanguage],

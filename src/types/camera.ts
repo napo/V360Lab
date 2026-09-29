@@ -89,6 +89,14 @@ export interface ActiveConnection {
   address: string;
 }
 
+/** A camera found by `discover_cameras`. */
+export interface DiscoveredCamera {
+  address: string;
+  model: string | null;
+  firmware: string | null;
+  deviceId: string | null;
+}
+
 export type CameraAction =
   | "startRecording"
   | "stopRecording"
