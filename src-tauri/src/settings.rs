@@ -20,7 +20,12 @@ pub struct Settings {
     pub debug_mode: bool,
     /// Interval of the background status refresh while connected.
     pub status_poll_interval_secs: u32,
+    /// UI language (`en`, `it`); `None` follows the system language.
+    pub language: Option<String>,
 }
+
+/// Languages the UI is translated into.
+pub const SUPPORTED_LANGUAGES: [&str; 2] = ["en", "it"];
 
 impl Default for Settings {
     fn default() -> Self {
@@ -30,6 +35,7 @@ impl Default for Settings {
             mock_mode: false,
             debug_mode: cfg!(debug_assertions),
             status_poll_interval_secs: 5,
+            language: None,
         }
     }
 }
@@ -37,15 +43,25 @@ impl Default for Settings {
 impl Settings {
     pub fn validate(&self) -> Result<(), AppError> {
         if !(1..=300).contains(&self.status_poll_interval_secs) {
-            return Err(AppError::Settings(
-                "the status refresh interval must be between 1 and 300 seconds".into(),
-            ));
+            return Err(AppError::Settings {
+                reason: "pollInterval",
+                message: "the status refresh interval must be between 1 and 300 seconds".into(),
+            });
         }
         if let Some(dir) = &self.download_directory {
             if !Path::new(dir).is_absolute() {
-                return Err(AppError::Settings(
-                    "the download directory must be an absolute path".into(),
-                ));
+                return Err(AppError::Settings {
+                    reason: "downloadDirectoryRelative",
+                    message: "the download directory must be an absolute path".into(),
+                });
+            }
+        }
+        if let Some(language) = &self.language {
+            if !SUPPORTED_LANGUAGES.contains(&language.as_str()) {
+                return Err(AppError::Settings {
+                    reason: "unsupportedLanguage",
+                    message: format!("unsupported language \"{language}\""),
+                });
             }
         }
         Ok(())
@@ -97,8 +113,10 @@ impl SettingsStore {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(AppError::fs(parent))?;
         }
-        let json = serde_json::to_string_pretty(settings)
-            .map_err(|e| AppError::Settings(e.to_string()))?;
+        let json = serde_json::to_string_pretty(settings).map_err(|e| AppError::Settings {
+            reason: "serialization",
+            message: e.to_string(),
+        })?;
         let temp = self.path.with_extension("json.tmp");
         std::fs::write(&temp, json).map_err(AppError::fs(&temp))?;
         std::fs::rename(&temp, &self.path).map_err(AppError::fs(&self.path))
@@ -140,6 +158,9 @@ mod tests {
         assert!(store
             .update(|s| s.download_directory = Some("relative/dir".into()))
             .is_err());
+        assert!(store.update(|s| s.language = Some("xx".into())).is_err());
+        assert!(store.update(|s| s.language = Some("it".into())).is_ok());
+        store.update(|s| s.language = None).unwrap();
         assert_eq!(store.get(), Settings::default());
     }
 

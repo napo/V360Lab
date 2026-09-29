@@ -31,10 +31,7 @@ fn output_dir() -> PathBuf {
     dir
 }
 
-fn smallest(
-    media: &[MediaItem],
-    filter: impl Fn(&MediaItem) -> bool,
-) -> Option<&MediaItem> {
+fn smallest(media: &[MediaItem], filter: impl Fn(&MediaItem) -> bool) -> Option<&MediaItem> {
     media
         .iter()
         .filter(|m| filter(m) && m.url.is_some())

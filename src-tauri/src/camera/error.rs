@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+use serde_json::{Map, Value};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -66,10 +67,33 @@ impl CameraError {
         }
     }
 
+    /// Values the UI interpolates into its translated message.
+    pub fn params(&self) -> Map<String, Value> {
+        let pairs: Vec<(&str, Value)> = match self {
+            Self::InvalidAddress { address, .. } | Self::Unreachable { address, .. } => {
+                vec![("address", address.as_str().into())]
+            }
+            Self::Timeout { timeout_secs, .. } => vec![("timeoutSecs", (*timeout_secs).into())],
+            Self::Http { status, .. } => vec![("status", (*status).into())],
+            Self::MalformedResponse { command, .. }
+            | Self::UnsupportedCommand { command, .. }
+            | Self::CommandFailed { command, .. } => vec![("command", command.as_str().into())],
+            Self::InvalidUrl { url, .. } | Self::Transfer { url, .. } => {
+                vec![("url", url.as_str().into())]
+            }
+            Self::TooLarge { size, limit } => {
+                vec![("size", (*size).into()), ("limit", (*limit).into())]
+            }
+            Self::Io { path, .. } => vec![("path", path.display().to_string().into())],
+        };
+        pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
+    }
+
     /// Technical details for logs and the debug view.
     pub fn detail(&self) -> Option<String> {
         match self {
-            Self::InvalidAddress { .. } | Self::TooLarge { .. } => None,
+            Self::InvalidAddress { reason, .. } => Some(reason.clone()),
+            Self::TooLarge { .. } => None,
             Self::Unreachable { detail, .. }
             | Self::Timeout { detail, .. }
             | Self::UnsupportedCommand { detail, .. } => Some(detail.clone()),

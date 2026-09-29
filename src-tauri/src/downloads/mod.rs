@@ -20,7 +20,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::camera::{CameraClient, MediaItem};
-use crate::error::AppError;
+use crate::error::{AppError, Resource};
 use crate::telemetry::fit;
 
 /// Upper bound for thumbnails saved next to media.
@@ -54,7 +54,25 @@ pub struct DownloadReport {
     pub directory: String,
     pub files: Vec<DownloadedFile>,
     /// Non-fatal problems (e.g. thumbnail unavailable, FIT header invalid).
-    pub warnings: Vec<String>,
+    pub warnings: Vec<DownloadWarning>,
+}
+
+/// Non-fatal download problem. `code` is stable and translated by the UI;
+/// `detail` is technical English text.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadWarning {
+    pub code: &'static str,
+    pub detail: String,
+}
+
+impl DownloadWarning {
+    fn new(code: &'static str, detail: impl Into<String>) -> Self {
+        Self {
+            code,
+            detail: detail.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -126,7 +144,7 @@ pub async fn download_media(
         .as_deref()
         .ok_or_else(|| AppError::MissingResource {
             name: item.name.clone(),
-            what: "download URL",
+            resource: Resource::DownloadUrl,
         })?;
     let directory = prepare_directory(root, item).await?;
     let mut report = new_report(item, &directory);
@@ -153,7 +171,7 @@ pub async fn download_media(
                 }
                 Err(e) => report
                     .warnings
-                    .push(format!("FIT file not downloaded: {e}")),
+                    .push(DownloadWarning::new("fitFailed", e.to_string())),
             }
         } else {
             log::debug!("{} has no associated FIT file", item.name);
@@ -164,7 +182,9 @@ pub async fn download_media(
         if let Some(thumbnail_url) = &item.thumbnail_url {
             match save_thumbnail(client, thumbnail_url, &directory).await {
                 Ok(file) => report.files.push(file),
-                Err(e) => report.warnings.push(format!("Thumbnail not saved: {e}")),
+                Err(e) => report
+                    .warnings
+                    .push(DownloadWarning::new("thumbnailFailed", e.to_string())),
             }
         }
     }
@@ -185,7 +205,7 @@ pub async fn download_fit(
     if item.fit_url.is_none() {
         return Err(AppError::MissingResource {
             name: item.name.clone(),
-            what: "FIT telemetry file",
+            resource: Resource::FitFile,
         });
     }
     let directory = prepare_directory(root, item).await?;
@@ -223,13 +243,13 @@ async fn download_fit_into(
     directory: &Path,
     item: &MediaItem,
     progress: ProgressSink<'_>,
-) -> Result<(DownloadedFile, Option<String>), AppError> {
+) -> Result<(DownloadedFile, Option<DownloadWarning>), AppError> {
     let url = item
         .fit_url
         .as_deref()
         .ok_or_else(|| AppError::MissingResource {
             name: item.name.clone(),
-            what: "FIT telemetry file",
+            resource: Resource::FitFile,
         })?;
     let path = directory.join(fit_file_name(url));
     let file = download_file(
@@ -247,9 +267,9 @@ async fn download_fit_into(
             log::debug!("FIT header for {}: {header:?}", item.name);
             None
         }
-        Err(e) => Some(format!(
-            "{} does not look like a FIT file: {e}",
-            path.display()
+        Err(e) => Some(DownloadWarning::new(
+            "fitInvalid",
+            format!("{}: {e}", path.display()),
         )),
     };
     Ok((file, warning))
