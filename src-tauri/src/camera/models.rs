@@ -10,6 +10,8 @@ use serde_json::Value;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CameraKind {
+    // kebab-case alone would produce "garmin-virb360".
+    #[serde(rename = "garmin-virb-360")]
     GarminVirb360,
     Mock,
 }
@@ -23,6 +25,20 @@ pub struct DeviceInfo {
     pub part_number: Option<String>,
     pub device_type: Option<String>,
     pub raw: Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn camera_kind_names_match_the_frontend() {
+        assert_eq!(
+            serde_json::to_value(CameraKind::GarminVirb360).unwrap(),
+            "garmin-virb-360"
+        );
+        assert_eq!(serde_json::to_value(CameraKind::Mock).unwrap(), "mock");
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

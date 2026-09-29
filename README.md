@@ -189,23 +189,23 @@ Confirmed:
 
 - Commands are `POST /virb` with body `{"command": "<name>"}`. Responses are JSON objects with `"result": 1` on success.
 - `deviceInfo` returns `{"deviceInfo": [{model, firmware, type, partNumber, deviceId, macAddress}]}`. `firmware` is an integer scaled by 100 (`420` = 4.20) and `deviceId` is a number.
-- `status` returns flat fields: `state` (`"recording"` while recording), `recordingTime` (s), `recordingTimeRemaining` (s), `batteryLevel` (percent, float), `batteryChargingState` (a number), `totalSpace` / `availableSpace` **in KiB** (converted to bytes), `gpsLatitude` / `gpsLongitude`, `wifiSignalStrength`, `photoCount`, and others. There is **no `mode` field**. The shooting mode appears in `features` as `shootingMode`.
+- `status` returns flat fields: `state` (`"recording"` while recording, `"idle"` otherwise), `recordingTime` (s), `recordingTimeRemaining` (s), `batteryLevel` (percent, float), `batteryChargingState` (a number), `totalSpace` / `availableSpace` **in KiB** (converted to bytes), `gpsLatitude` / `gpsLongitude`, `wifiSignalStrength`, `photoCount`, and others. There is **no `mode` field**. The shooting mode appears in `features` as `shootingMode`.
 - `features` returns `{"features": [{type, feature, enabled, value, options}]}`. `type` 0 = action (no value), 1 = choice, 2 = on/off toggle (`"1"`/`"0"`).
-- `mediaList` returns `{"media": [{type, subtype, name, url, thumbUrl, lowResVideoPath, fitURL, fileSize, date, groupId, index, lensMode, fav}]}`. `date` is Unix seconds. URLs include the camera IP and `:80`. Video thumbnails are `.THM` (JPEG). Photo thumbnails are `.BMP` under `/thumb/`. `lensMode` values include `360` and `frontLensOnly`. Photos have no `fitURL`.
+- `mediaList` returns `{"media": [{type, subtype, name, url, thumbUrl, lowResVideoPath, fitURL, fileSize, date, groupId, index, lensMode, fav}]}`. `date` is Unix seconds in UTC (checked against the photo's EXIF capture time). URLs include the camera IP and `:80`. Video thumbnails are `.THM` (JPEG). Photo thumbnails are `.BMP` under `/thumb/`. `lensMode` values include `360` and `frontLensOnly`. Photos have no `fitURL`.
+- Downloads work end to end: MP4, FIT (valid FIT file), JPEG video thumbnails, 160×120 BMP photo thumbnails and JPG photos with EXIF/GPS. Sizes match `fileSize`.
 - `stopRecording` returns `{"result": 1, "media": {"uuids": ["<...>.fit"]}}`.
 - `mediaList` is slow on a full card (about 4 s and 280 KB for ~1000 files), so it gets a 60 s timeout.
 
 Still assumed (not yet observed):
 
-- The `state` value while idle (anything without "record" in it is treated as not recording).
 - The response to an unknown command. HTTP 404/405/501, or an error message mentioning an unknown/unsupported command, is reported as "unsupported command".
-- The time zone of `date`. It is treated as UTC; FIT file names such as `2021-02-19-18-21-42.fit` do not obviously match it.
+- How FIT file names (e.g. `2021-02-19-18-21-42.fit`) relate to the media `date`.
 
 Parsing is deliberately tolerant. Every field is optional, numbers may arrive as strings, several field-name aliases are accepted, and unknown properties are kept in `raw` so that firmware differences can be inspected in debug mode.
 
 ## Known limitations
 
-- Tested with one VIRB 360 (firmware 4.20); media download and FIT download have not been exercised on hardware yet.
+- Tested with one VIRB 360 (firmware 4.20), including small media and FIT downloads; multi-GB downloads have not been tried yet.
 - Camera settings are read-only; `updateFeature` is not implemented.
 - On firmware 4.20 the dashboard mode comes from the `shootingMode` feature. It is read after connecting and on manual refresh, not on every status poll.
 - FIT files are downloaded and their header is validated, but not decoded.
@@ -215,11 +215,10 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 
 ### Still to verify with a real camera
 
-1. Downloading a large video and its FIT file end to end, including progress and the `.part` → final rename (the `real_camera` test covers the smallest files).
-2. The idle `state` value and the response to an unknown command.
+1. Downloading a multi-GB video (the `real_camera` test covers the smallest files).
+2. The response to an unknown command.
 3. How raw (unstitched) dual-lens recordings and time-lapse groups (`groupId`) appear in the media list.
 4. Whether `snapPicture` is accepted while recording or in video mode (the UI currently disables it while recording).
-5. The time zone of `date` relative to FIT file names.
 
 Please report findings (with the raw JSON from debug mode) in an issue.
 
