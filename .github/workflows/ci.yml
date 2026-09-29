@@ -35,6 +35,7 @@ jobs:
           workspaces: src-tauri
 
       - run: npm ci
+      - run: node scripts/check-version.mjs
       - run: npm run typecheck
       - run: npm test
       # The Rust crate embeds the built frontend, so build it first.

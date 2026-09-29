@@ -1569,3 +1569,20 @@ details.panel:not([open]) > summary {
     padding: 0 14px;
   }
 }
+
+.app-version {
+  display: block;
+  margin-top: 4px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--sidebar-muted);
+}
+
+.app-version-footer {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 8px 0 16px;
+}

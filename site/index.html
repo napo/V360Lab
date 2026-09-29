@@ -14,12 +14,13 @@
   <body>
     <header class="hero">
       <img class="hero-logo" src="assets/logo-dark-bg.png" alt="V360Lab — Open tools for Garmin VIRB 360" />
+      <p class="version-badge" id="version-badge" hidden></p>
       <p class="tagline">
         Control your Garmin VIRB 360 from your phone or computer, download media and FIT telemetry, and
         prepare 360° data for geospatial and computer-vision work. Local only, no cloud.
       </p>
       <div class="cta">
-        <a class="button primary" href="#download">Download</a>
+        <a class="button primary" href="#download" id="download-button">Download</a>
         <a class="button" href="https://github.com/napo/V360Lab">Source on GitHub</a>
       </div>
     </header>
@@ -124,7 +125,7 @@
       <p>
         <a href="https://github.com/napo/V360Lab">GitHub</a> ·
         <a href="https://github.com/napo/V360Lab/blob/main/LICENSE">AGPL-3.0</a> ·
-        <a href="https://github.com/napo/V360Lab/releases">All releases</a>
+        <a href="https://github.com/napo/V360Lab/releases">All releases</a><span id="footer-version"></span>
       </p>
     </footer>
 

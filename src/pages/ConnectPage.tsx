@@ -12,7 +12,14 @@ export function ConnectPage({ navigate }: { navigate: Navigate }) {
   const { connection, deviceInfo, status, disconnect } = useCamera();
   const { t } = useI18n();
 
-  if (connection.status !== "connected") return <ConnectionPage />;
+  if (connection.status !== "connected") {
+    return (
+      <>
+        <ConnectionPage />
+        <p className="app-version-footer">V360Lab v{__APP_VERSION__}</p>
+      </>
+    );
+  }
 
   return (
     <div className="page page-narrow">
@@ -48,6 +55,7 @@ export function ConnectPage({ navigate }: { navigate: Navigate }) {
           </button>
         </div>
       </Panel>
+      <p className="app-version-footer">V360Lab v{__APP_VERSION__}</p>
     </div>
   );
 }

@@ -19,6 +19,7 @@ export function Sidebar({ current, onNavigate }: SidebarProps) {
     <aside className="sidebar">
       <div className="brand">
         <img src="/brand/logo-dark-bg.png" alt={t("app.name")} />
+        <span className="app-version">v{__APP_VERSION__}</span>
       </div>
       <nav>
         {PAGES.map((page) => (

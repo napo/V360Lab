@@ -10,7 +10,13 @@
     const response = await fetch("https://api.github.com/repos/napo/V360Lab/releases/latest");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const release = await response.json();
-    info.textContent = `Latest release: ${release.tag_name} (${new Date(release.published_at).toLocaleDateString()})`;
+    const date = new Date(release.published_at).toLocaleDateString();
+    info.textContent = `Latest release: ${release.tag_name} (${date})`;
+    const badge = document.getElementById("version-badge");
+    badge.textContent = `Version ${release.tag_name.replace(/^v/, "")} · ${date}`;
+    badge.hidden = false;
+    document.getElementById("download-button").textContent = `Download ${release.tag_name}`;
+    document.getElementById("footer-version").textContent = ` · ${release.tag_name}`;
     for (const [platform, patterns] of Object.entries(platforms)) {
       const card = document.querySelector(`.download[data-platform="${platform}"]`);
       const assets = patterns.flatMap((p) => release.assets.filter((a) => p.test(a.name)));

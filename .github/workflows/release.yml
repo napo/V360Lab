@@ -29,6 +29,8 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then TAG="$GITHUB_REF_NAME"; else TAG="v$VERSION"; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # The tag must match package.json, Cargo.toml and tauri.conf.json.
+          node scripts/check-version.mjs "$TAG"
 
       - name: Create the GitHub release if missing
         env:
