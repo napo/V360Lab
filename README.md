@@ -188,7 +188,7 @@ Everything is built by GitHub Actions (`.github/workflows/`):
 | `release.yml` | a pushed tag `v*` (or run manually) | GitHub release with Windows (`.msi`, `-setup.exe`), Linux (`.AppImage`, `.deb`, `.rpm`) and a signed Android APK |
 | `pages.yml` | changes in `site/` on `main` | the project website on GitHub Pages |
 
-To publish a new version, bump `version` in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (`node scripts/check-version.mjs` verifies they match; the release workflow also checks them against the tag), commit, then:
+To publish a new version, bump `version` in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (`node scripts/check-version.mjs` verifies they match; the release workflow also checks them against the tag), add a `## x.y.z` section to `CHANGELOG.md` (it becomes the release notes), commit, then:
 
 ```bash
 git tag v0.2.0 && git push origin v0.2.0

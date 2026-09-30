@@ -1,6 +1,6 @@
 [package]
 name = "v360lab"
-version = "0.1.0"
+version = "0.2.0"
 description = "Open-source toolkit for Garmin VIRB 360 video, telemetry and computer vision."
 authors = ["V360Lab contributors"]
 license = "AGPL-3.0-only"
