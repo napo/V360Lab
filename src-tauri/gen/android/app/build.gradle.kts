@@ -22,13 +22,13 @@ val keystorePropertiesFile = rootProject.file("keystore.properties")
 val hasReleaseKey = keystorePropertiesFile.exists()
 
 android {
-    compileSdk = 37
+    compileSdk = 36
     namespace = "org.v360lab.app"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "org.v360lab.app"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
