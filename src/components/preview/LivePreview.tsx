@@ -13,6 +13,11 @@ const STORAGE_KEY = "v360lab.preview.enabled";
 /** Automatic reconnections after the stream stops, before giving up. */
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1500;
+/**
+ * The VIRB stops the preview stream when the lens or mode changes, and
+ * needs a moment before streaming again reliably (measured on 4.20).
+ */
+const RESTART_AFTER_CHANGE_MS = 2000;
 
 function readEnabled(): boolean {
   try {
@@ -34,7 +39,12 @@ function writeEnabled(enabled: boolean) {
  * What the camera sees right now, with the current lens and mode. Starts
  * automatically (unless the user turned it off) and stops when unmounted.
  */
-export function LivePreview() {
+interface LivePreviewProps {
+  /** Changes whenever a setting that restarts the camera's stream changes. */
+  restartKey?: string;
+}
+
+export function LivePreview({ restartKey }: LivePreviewProps) {
   const { t } = useI18n();
   const supported = webCodecsAvailable();
   const [enabled, setEnabled] = useState(readEnabled);
@@ -121,6 +131,23 @@ export function LivePreview() {
     void start();
     return stop;
   }, [supported, enabled, start, stop]);
+
+  // Restart right after a lens/mode change instead of waiting for the
+  // stalled-stream detection.
+  const lastKey = useRef(restartKey);
+  useEffect(() => {
+    if (lastKey.current === restartKey) return;
+    lastKey.current = restartKey;
+    if (!supported || !enabled) return;
+    generation.current++;
+    window.clearTimeout(retryTimer.current);
+    player.current?.close();
+    player.current = null;
+    setError(null);
+    setState("reconnecting");
+    retries.current = 0;
+    retryTimer.current = window.setTimeout(() => void start(true), RESTART_AFTER_CHANGE_MS);
+  }, [restartKey, supported, enabled, start]);
 
   const toggle = () => {
     const next = !enabled;

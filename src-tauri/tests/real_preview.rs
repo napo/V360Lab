@@ -27,7 +27,8 @@ async fn records_three_seconds_of_preview() {
         }))
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    let secs = std::env::var("PREVIEW_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(3);
+    tokio::time::sleep(Duration::from_secs(secs)).await;
     manager.stop().await;
 
     let messages = messages.lock().unwrap();

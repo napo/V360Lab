@@ -76,6 +76,10 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
     label = t("capture.shutterPhoto");
   }
 
+  // Settings whose change makes the camera restart its preview stream.
+  const previewKey = ["shootingMode", "video360Format", "photo360Format", "videoMode", "photoMode"]
+    .map((key) => featureValue(findFeature(features, key)) ?? "")
+    .join("|");
   const modeFeature = findFeature(features, "shootingMode");
   const settingsLocked = recording || camera.pendingFeature !== null;
 
@@ -98,7 +102,7 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
         )}
       </div>
 
-      <LivePreview />
+      <LivePreview restartKey={previewKey} />
 
       {modeFeature && (
         <div className="segmented segmented-large" role="group" aria-label={t("capture.mode")}>
