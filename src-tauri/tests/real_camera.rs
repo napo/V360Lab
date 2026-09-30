@@ -137,3 +137,15 @@ async fn scan_finds_camera_on_local_network() {
     println!("found: {found:?} in {} ms", started.elapsed().as_millis());
     assert!(!found.is_empty(), "no camera found");
 }
+
+/// Read-only: prints the Wi-Fi networks, so the raw response format can be
+/// checked (run with `RUST_LOG=v360lab_lib=debug` to see the JSON).
+#[tokio::test]
+#[ignore = "requires a VIRB 360 (set V360LAB_CAMERA)"]
+async fn reads_wifi_networks() {
+    let Some(camera) = camera() else { return };
+    let wifi = camera.wifi_networks().await.expect("networks");
+    println!("camera network: {:?}", wifi.access_point_ssid);
+    println!("configured: {:?}", wifi.configured);
+    println!("scanned: {:?}", wifi.scanned);
+}

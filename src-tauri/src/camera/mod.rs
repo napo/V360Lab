@@ -52,6 +52,33 @@ pub trait CameraClient: Send + Sync {
         Ok(None)
     }
 
+    /// Wi-Fi networks saved on and visible to the camera, plus the name of
+    /// the camera's own network.
+    async fn wifi_networks(&self) -> Result<WifiNetworks, CameraError> {
+        Err(unsupported("networks"))
+    }
+
+    /// Saves a network on the camera without switching to it.
+    async fn configure_wifi_network(
+        &self,
+        _ssid: &str,
+        _security: WifiSecurity,
+        _password: &str,
+    ) -> Result<CommandAck, CameraError> {
+        Err(unsupported("configureNetwork"))
+    }
+
+    /// Asks the camera to leave its own network and join a saved one. The
+    /// camera becomes unreachable at its current address afterwards.
+    async fn connect_wifi_network(&self, _ssid: &str) -> Result<CommandAck, CameraError> {
+        Err(unsupported("connectNetwork"))
+    }
+
+    /// Removes a saved network from the camera.
+    async fn remove_wifi_network(&self, _ssid: &str) -> Result<CommandAck, CameraError> {
+        Err(unsupported("removeNetwork"))
+    }
+
     /// Fetches a small resource (e.g. a thumbnail) into memory.
     /// Fails with [`CameraError::TooLarge`] above `max_bytes`.
     async fn fetch_resource(
@@ -68,4 +95,11 @@ pub trait CameraClient: Send + Sync {
         destination: &Path,
         progress: ProgressFn<'_>,
     ) -> Result<u64, CameraError>;
+}
+
+fn unsupported(command: &str) -> CameraError {
+    CameraError::UnsupportedCommand {
+        command: command.to_string(),
+        detail: "not implemented for this camera".to_string(),
+    }
 }

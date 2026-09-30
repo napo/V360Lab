@@ -30,7 +30,7 @@ function Shell() {
   let content;
   if (page === "connect") content = <ConnectPage navigate={setPage} />;
   else if (page === "capture") content = <CapturePage navigate={setPage} />;
-  else if (page === "advanced") content = <AdvancedPage />;
+  else if (page === "advanced") content = <AdvancedPage navigate={setPage} />;
   else if (definition.requiresCamera && !connected) content = <NotConnected navigate={setPage} />;
   else content = <MediaPage />;
 

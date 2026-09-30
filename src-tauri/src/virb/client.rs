@@ -14,10 +14,10 @@ use url::Url;
 use crate::camera::address::{normalize_address, resolve_camera_url};
 use crate::camera::{
     CameraClient, CameraError, CameraFeature, CameraKind, CameraStatus, CommandAck, DeviceInfo,
-    FeatureList, FetchedResource, MediaItem, ProgressFn,
+    FeatureList, FetchedResource, MediaItem, ProgressFn, WifiNetworks, WifiSecurity,
 };
 
-use super::commands::VirbCommand;
+use super::commands::{NetworkCommand, VirbCommand};
 use super::errors::{self, snippet};
 use super::models;
 
@@ -33,6 +33,8 @@ pub struct VirbClientConfig {
     /// `mediaList` is much slower: a full card returns hundreds of KB
     /// (about 4 s for ~1000 files on firmware 4.20).
     pub media_list_timeout: Duration,
+    /// Scanning for Wi-Fi networks takes the camera a few seconds.
+    pub network_scan_timeout: Duration,
     /// Maximum silence while streaming a download (no total limit, since
     /// 360 videos can be several gigabytes).
     pub transfer_read_timeout: Duration,
@@ -44,6 +46,7 @@ impl Default for VirbClientConfig {
             connect_timeout: Duration::from_secs(3),
             command_timeout: Duration::from_secs(10),
             media_list_timeout: Duration::from_secs(60),
+            network_scan_timeout: Duration::from_secs(30),
             transfer_read_timeout: Duration::from_secs(30),
         }
     }
@@ -99,9 +102,12 @@ impl GarminVirb360Client {
 
     /// Sends a command and returns the validated JSON response.
     async fn execute(&self, command: &VirbCommand) -> Result<Value, CameraError> {
-        let name = command.name();
+        let name = command.label();
         let timeout = match command {
             VirbCommand::MediaList => self.config.media_list_timeout,
+            VirbCommand::Networks(NetworkCommand::GetScannedNetworks) => {
+                self.config.network_scan_timeout
+            }
             _ => self.config.command_timeout,
         };
         let started = Instant::now();
@@ -121,6 +127,11 @@ impl GarminVirb360Client {
             .await
             .map_err(|e| self.transport_error(&e, timeout))?;
 
+        // The camera may echo a Wi-Fi password: never log or report it.
+        let body = match command.secret() {
+            Some(secret) => body.replace(secret, "********"),
+            None => body,
+        };
         log::debug!(
             "VIRB <- {name}: HTTP {} in {} ms, {} bytes: {}",
             status.as_u16(),
@@ -137,7 +148,7 @@ impl GarminVirb360Client {
 
     async fn acknowledge(&self, command: VirbCommand) -> Result<CommandAck, CameraError> {
         let response = self.execute(&command).await?;
-        Ok(models::command_ack(command.name(), response))
+        Ok(models::command_ack(command.label(), response))
     }
 
     fn transport_error(&self, err: &reqwest::Error, timeout: Duration) -> CameraError {
@@ -242,6 +253,55 @@ impl CameraClient for GarminVirb360Client {
                 snippet: response.to_string(),
             }),
         }
+    }
+
+    async fn wifi_networks(&self) -> Result<WifiNetworks, CameraError> {
+        let networks = |command| VirbCommand::Networks(command);
+        let access_point_ssid =
+            models::parse_ap_ssid(&self.execute(&networks(NetworkCommand::GetApSsid)).await?);
+        let configured = models::parse_wifi_networks(
+            &self
+                .execute(&networks(NetworkCommand::GetConfiguredNetworks))
+                .await?,
+        );
+        let scanned = models::parse_wifi_networks(
+            &self
+                .execute(&networks(NetworkCommand::GetScannedNetworks))
+                .await?,
+        );
+        Ok(WifiNetworks {
+            access_point_ssid,
+            configured,
+            scanned,
+        })
+    }
+
+    async fn configure_wifi_network(
+        &self,
+        ssid: &str,
+        security: WifiSecurity,
+        password: &str,
+    ) -> Result<CommandAck, CameraError> {
+        self.acknowledge(VirbCommand::Networks(NetworkCommand::Configure {
+            ssid: ssid.to_string(),
+            security,
+            password: password.to_string(),
+        }))
+        .await
+    }
+
+    async fn connect_wifi_network(&self, ssid: &str) -> Result<CommandAck, CameraError> {
+        self.acknowledge(VirbCommand::Networks(NetworkCommand::Connect {
+            ssid: ssid.to_string(),
+        }))
+        .await
+    }
+
+    async fn remove_wifi_network(&self, ssid: &str) -> Result<CommandAck, CameraError> {
+        self.acknowledge(VirbCommand::Networks(NetworkCommand::Remove {
+            ssid: ssid.to_string(),
+        }))
+        .await
     }
 
     async fn fetch_resource(

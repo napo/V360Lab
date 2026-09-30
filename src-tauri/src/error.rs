@@ -58,6 +58,14 @@ pub enum AppError {
         reason: &'static str,
         message: String,
     },
+
+    /// Wi-Fi network details the camera would not accept.
+    /// `reason` is a stable code the UI translates.
+    #[error("Invalid Wi-Fi network: {message}")]
+    Wifi {
+        reason: &'static str,
+        message: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +103,7 @@ impl AppError {
             Self::Filesystem { .. } => "filesystem",
             Self::Settings { .. } => "settings",
             Self::Preview { .. } => "preview",
+            Self::Wifi { .. } => "wifi",
         }
     }
 
@@ -116,7 +125,7 @@ impl AppError {
             Self::Filesystem { path, .. } => {
                 params.insert("path".into(), path.display().to_string().into());
             }
-            Self::Settings { reason, .. } => {
+            Self::Settings { reason, .. } | Self::Wifi { reason, .. } => {
                 params.insert("reason".into(), (*reason).into());
             }
             Self::Preview { reason, .. } => {

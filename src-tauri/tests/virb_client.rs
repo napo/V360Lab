@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use v360lab_lib::camera::{CameraClient, CameraError, MediaType, RecordingState};
+use v360lab_lib::camera::{CameraClient, CameraError, MediaType, RecordingState, WifiSecurity};
 use v360lab_lib::virb::{GarminVirb360Client, VirbClientConfig};
 use wiremock::matchers::{body_json, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -21,6 +21,7 @@ fn client_for(server: &MockServer) -> GarminVirb360Client {
         command_timeout: Duration::from_millis(500),
         transfer_read_timeout: Duration::from_millis(500),
         media_list_timeout: Duration::from_millis(1500),
+        network_scan_timeout: Duration::from_millis(1500),
     };
     GarminVirb360Client::with_config(&server.uri(), config).unwrap()
 }
@@ -358,4 +359,98 @@ async fn http_400_is_unsupported_command() {
         matches!(err, CameraError::UnsupportedCommand { .. }),
         "{err:?}"
     );
+}
+
+async fn mount_network(server: &MockServer, request: Value, response: Value) {
+    Mock::given(method("POST"))
+        .and(path("/virb"))
+        .and(body_json(request))
+        .respond_with(ResponseTemplate::new(200).set_body_json(response))
+        .expect(1)
+        .mount(server)
+        .await;
+}
+
+#[tokio::test]
+async fn wifi_commands_send_the_official_app_payloads() {
+    let server = MockServer::start().await;
+    let networks = |sub: &str| json!({ "command": "networks", "subCommand": sub });
+    mount_network(
+        &server,
+        networks("getApSSID"),
+        json!({ "result": 1, "subCommand": { "ssid": "VIRB 360 1234" } }),
+    )
+    .await;
+    mount_network(
+        &server,
+        networks("getConfiguredNetworks"),
+        json!({ "result": 1, "subCommand": { "networks": [{ "ssid": "Home", "securityType": "WPA2" }] } }),
+    )
+    .await;
+    mount_network(
+        &server,
+        networks("getScannedNetworks"),
+        json!({ "result": 1, "subCommand": { "networks": [
+            { "ssid": "Home", "securityType": "WPA2" },
+            { "ssid": "Cafe", "securityType": "Open" }
+        ] } }),
+    )
+    .await;
+    mount_network(
+        &server,
+        json!({
+            "command": "networks",
+            "subCommand": "configureNetwork",
+            "args": { "type": "station", "securityType": "WPA2", "ssid": "Home", "password": "password1" }
+        }),
+        json!({ "result": 1 }),
+    )
+    .await;
+    mount_network(
+        &server,
+        json!({ "command": "networks", "subCommand": "connectNetwork", "args": { "ssid": "Home" } }),
+        json!({ "result": 1 }),
+    )
+    .await;
+    mount_network(
+        &server,
+        json!({ "command": "networks", "subCommand": "removeNetwork", "args": { "ssid": "Home" } }),
+        json!({ "result": 1 }),
+    )
+    .await;
+    let client = client_for(&server);
+
+    let wifi = client.wifi_networks().await.unwrap();
+    assert_eq!(wifi.access_point_ssid.as_deref(), Some("VIRB 360 1234"));
+    assert_eq!(wifi.configured[0].ssid, "Home");
+    assert_eq!(wifi.scanned[1].security, Some(WifiSecurity::Open));
+
+    client
+        .configure_wifi_network("Home", WifiSecurity::Wpa2, "password1")
+        .await
+        .unwrap();
+    client.connect_wifi_network("Home").await.unwrap();
+    client.remove_wifi_network("Home").await.unwrap();
+}
+
+#[tokio::test]
+async fn rejected_wifi_password_is_not_reported() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/virb"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "result": 0, "args": { "password": "password1" } })),
+        )
+        .mount(&server)
+        .await;
+    let err = client_for(&server)
+        .configure_wifi_network("Home", WifiSecurity::Wpa2, "password1")
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, CameraError::CommandFailed { ref command, .. } if command == "configureNetwork")
+    );
+    let detail = err.detail().unwrap_or_default();
+    assert!(!detail.contains("password1"), "{detail}");
 }

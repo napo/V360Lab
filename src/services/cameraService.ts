@@ -8,6 +8,9 @@ import type {
   DiscoveredCamera,
   FeatureList,
   MediaItem,
+  WifiNetworks,
+  WifiSecurity,
+  WifiSwitch,
 } from "../types/camera";
 import type { DeleteReport } from "../types/downloads";
 import { call } from "./backend";
@@ -43,6 +46,11 @@ export const cameraService = {
   deleteMedia: (items: MediaItem[], activityId: string) =>
     call<DeleteReport>("delete_media", { items, activityId }),
   thumbnail: (url: string) => call<string>("fetch_thumbnail", { url }),
+  wifiNetworks: shared(() => call<WifiNetworks>("get_wifi_networks")),
+  addWifiNetwork: (ssid: string, security: WifiSecurity, password: string) =>
+    call<CommandAck>("add_wifi_network", { ssid, security, password }),
+  connectWifiNetwork: (ssid: string) => call<WifiSwitch>("connect_wifi_network", { ssid }),
+  removeWifiNetwork: (ssid: string) => call<CommandAck>("remove_wifi_network", { ssid }),
   runAction: (action: CameraAction) => {
     const commands: Record<CameraAction, string> = {
       startRecording: "start_recording",

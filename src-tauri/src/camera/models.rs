@@ -107,6 +107,59 @@ pub struct MediaItem {
     pub raw: Value,
 }
 
+/// Security of a Wi-Fi network, as the VIRB names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WifiSecurity {
+    #[serde(rename = "WPA2")]
+    Wpa2,
+    #[serde(rename = "WPA")]
+    Wpa,
+    #[serde(rename = "WEP")]
+    Wep,
+    Open,
+}
+
+impl WifiSecurity {
+    /// Value sent to the camera.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Wpa2 => "WPA2",
+            Self::Wpa => "WPA",
+            Self::Wep => "WEP",
+            Self::Open => "Open",
+        }
+    }
+
+    /// Case-insensitive match of a value reported by the camera.
+    pub fn parse(value: &str) -> Option<Self> {
+        [Self::Wpa2, Self::Wpa, Self::Wep, Self::Open]
+            .into_iter()
+            .find(|s| s.as_str().eq_ignore_ascii_case(value.trim()))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiNetwork {
+    pub ssid: String,
+    /// `None` when the camera reports an unknown security value
+    /// (kept in `security_raw`).
+    pub security: Option<WifiSecurity>,
+    pub security_raw: Option<String>,
+}
+
+/// Wi-Fi networks as seen by the camera.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiNetworks {
+    /// Name of the network the camera creates itself.
+    pub access_point_ssid: Option<String>,
+    /// Networks saved on the camera, which it joins automatically.
+    pub configured: Vec<WifiNetwork>,
+    /// Networks the camera can see now.
+    pub scanned: Vec<WifiNetwork>,
+}
+
 /// Result of a control command (start/stop recording, snap picture).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
