@@ -1586,3 +1586,114 @@ details.panel:not([open]) > summary {
   color: var(--text-muted);
   margin: 8px 0 16px;
 }
+
+/* ---------- Shutter: photo diaphragm, recording glow ---------- */
+
+.shutter-photo,
+.shutter-interval {
+  border-color: var(--text);
+}
+
+/* While the camera takes the picture the diaphragm is the feedback. */
+.shutter-photo.busy:disabled,
+.shutter-interval.busy:disabled {
+  opacity: 1;
+}
+
+.shutter .aperture {
+  width: 80%;
+  height: 80%;
+  overflow: visible;
+}
+
+.aperture-blade {
+  fill: #253042;
+  stroke: #a9bdd8;
+  stroke-width: 1.6;
+  /* Closed: every blade edge passes through the center. */
+  transform: rotate(var(--angle)) translateY(0);
+  transition: transform 0.18s cubic-bezier(0.3, 0, 0.2, 1);
+}
+
+.aperture-blade.alt {
+  fill: #313e53;
+}
+
+.aperture.open .aperture-blade {
+  /* Open: blades slide out and twist, leaving a hexagonal aperture. */
+  transform: rotate(calc(var(--angle) + 18deg)) translateY(26px);
+  transition-duration: 0.12s;
+}
+
+.aperture-rim {
+  fill: none;
+  stroke: #4a5a72;
+  stroke-width: 2;
+}
+
+.shutter-interval .aperture-rim,
+.shutter-interval .aperture-blade {
+  stroke: var(--brand-cyan);
+}
+
+.shutter-stop {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--record);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85);
+}
+
+.shutter-interval.active {
+  border-color: var(--brand-cyan);
+  box-shadow: 0 0 0 6px rgba(0, 180, 255, 0.2);
+}
+
+/* Recording: a red halo that breathes around the button. */
+.shutter-video.active {
+  box-shadow:
+    0 0 0 6px rgba(224, 40, 58, 0.25),
+    0 0 26px 8px rgba(224, 40, 58, 0.55);
+  animation: rec-glow 1.6s ease-in-out infinite;
+}
+
+.shutter-video.active::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 3px solid var(--record);
+  animation: rec-ring 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes rec-glow {
+  50% {
+    box-shadow:
+      0 0 0 10px rgba(224, 40, 58, 0.18),
+      0 0 40px 16px rgba(224, 40, 58, 0.4);
+  }
+}
+
+@keyframes rec-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shutter-video.active,
+  .shutter-video.active::after {
+    animation: none;
+  }
+
+  .aperture-blade {
+    transition: none;
+  }
+}
