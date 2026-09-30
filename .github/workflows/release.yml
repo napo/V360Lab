@@ -2,12 +2,18 @@ name: Release
 
 # Builds and publishes V360Lab for Windows, Linux and Android.
 # Triggered by pushing a tag such as v0.1.0, or manually (uses the version
-# in package.json as the tag).
+# in package.json as the tag). A manual run can rebuild only the Android APK
+# and attach it to the existing release.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      android_only:
+        description: Only build the Android APK
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -47,6 +53,7 @@ jobs:
   desktop:
     name: Desktop (${{ matrix.platform }})
     needs: create-release
+    if: ${{ !inputs.android_only }}
     strategy:
       fail-fast: false
       matrix:
@@ -109,11 +116,16 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # The action's default package list includes "tools", which recent
+      # sdkmanager versions no longer provide; install only what we need.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
-      - name: Install the Android NDK
+      - name: Install the Android platform and NDK
         run: |
-          sdkmanager --install "ndk;${NDK_VERSION}"
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "platforms;android-37" "ndk;${NDK_VERSION}"
           echo "NDK_HOME=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
