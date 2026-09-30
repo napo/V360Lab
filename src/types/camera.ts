@@ -102,3 +102,29 @@ export type CameraAction =
   | "stopRecording"
   | "snapPicture"
   | "stopStillRecording";
+
+/** Wi-Fi security values as the VIRB names them. */
+export type WifiSecurity = "WPA2" | "WPA" | "WEP" | "Open";
+
+export const WIFI_SECURITY_TYPES: WifiSecurity[] = ["WPA2", "WPA", "WEP", "Open"];
+
+export interface WifiNetwork {
+  ssid: string;
+  /** Null when the camera reports an unknown value (see `securityRaw`). */
+  security: WifiSecurity | null;
+  securityRaw: string | null;
+}
+
+export interface WifiNetworks {
+  /** Name of the network the camera creates itself. */
+  accessPointSsid: string | null;
+  /** Networks saved on the camera, which it joins automatically. */
+  configured: WifiNetwork[];
+  /** Networks the camera can see now. */
+  scanned: WifiNetwork[];
+}
+
+export interface WifiSwitch {
+  /** False when the camera left before answering (it is most likely switching). */
+  confirmed: boolean;
+}

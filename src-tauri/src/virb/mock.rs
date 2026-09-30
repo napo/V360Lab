@@ -14,7 +14,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::camera::{
     CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList,
-    FetchedResource, MediaItem, ProgressFn,
+    FetchedResource, MediaItem, ProgressFn, WifiNetworks, WifiSecurity,
 };
 use crate::telemetry::fit;
 
@@ -26,6 +26,7 @@ const MOCK_ADDRESS: &str = "mock://virb360";
 const TOTAL_SPACE: u64 = 128_010_158_080;
 /// Size of the placeholder files written for mock media downloads.
 const MOCK_FILE_BYTES: usize = 512 * 1024;
+const MOCK_AP_SSID: &str = "VIRB 360 1234";
 
 pub struct MockVirb360Client {
     state: Mutex<MockState>,
@@ -40,6 +41,8 @@ struct MockState {
     media: Vec<Value>,
     /// Feature list in raw VIRB format (modified by `update_feature`).
     features: Value,
+    /// Saved Wi-Fi networks in raw VIRB format.
+    wifi_configured: Vec<Value>,
 }
 
 impl Default for MockVirb360Client {
@@ -69,6 +72,7 @@ impl MockVirb360Client {
                 next_photo: 4,
                 media,
                 features: mock_features(),
+                wifi_configured: vec![json!({ "ssid": "Home", "securityType": "WPA2" })],
             }),
             latency,
         }
@@ -242,6 +246,64 @@ impl CameraClient for MockVirb360Client {
         self.simulate_latency().await;
         let media = self.with_state(|s| s.media.clone());
         models::parse_media_list(&json!({ "media": media, "result": 1 }))
+    }
+
+    async fn wifi_networks(&self) -> Result<WifiNetworks, CameraError> {
+        self.simulate_latency().await;
+        let configured = self.with_state(|s| s.wifi_configured.clone());
+        let scanned = json!([
+            { "ssid": "Home", "securityType": "WPA2" },
+            { "ssid": "Office", "securityType": "WPA2" },
+            { "ssid": "Cafe", "securityType": "Open" },
+            { "ssid": "Old router", "securityType": "WEP" }
+        ]);
+        Ok(WifiNetworks {
+            access_point_ssid: models::parse_ap_ssid(
+                &json!({ "result": 1, "subCommand": { "ssid": MOCK_AP_SSID } }),
+            ),
+            configured: models::parse_wifi_networks(
+                &json!({ "result": 1, "subCommand": { "networks": configured } }),
+            ),
+            scanned: models::parse_wifi_networks(
+                &json!({ "result": 1, "subCommand": { "networks": scanned } }),
+            ),
+        })
+    }
+
+    async fn configure_wifi_network(
+        &self,
+        ssid: &str,
+        security: WifiSecurity,
+        _password: &str,
+    ) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        self.with_state(|s| {
+            s.wifi_configured.retain(|n| n["ssid"] != ssid);
+            s.wifi_configured
+                .push(json!({ "ssid": ssid, "securityType": security.as_str() }));
+        });
+        Ok(models::command_ack(
+            "configureNetwork",
+            json!({ "result": 1 }),
+        ))
+    }
+
+    async fn connect_wifi_network(&self, ssid: &str) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        let known = self.with_state(|s| s.wifi_configured.iter().any(|n| n["ssid"] == ssid));
+        if !known {
+            return Err(Self::failed("connectNetwork"));
+        }
+        Ok(models::command_ack(
+            "connectNetwork",
+            json!({ "result": 1 }),
+        ))
+    }
+
+    async fn remove_wifi_network(&self, ssid: &str) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        self.with_state(|s| s.wifi_configured.retain(|n| n["ssid"] != ssid));
+        Ok(models::command_ack("removeNetwork", json!({ "result": 1 })))
     }
 
     async fn fetch_resource(
@@ -465,5 +527,25 @@ mod tests {
             .unwrap();
         assert_eq!(bytes, MOCK_FILE_BYTES as u64);
         assert!(!partial_path(&video_path).exists());
+    }
+
+    #[tokio::test]
+    async fn manages_wifi_networks() {
+        let camera = client();
+        let networks = camera.wifi_networks().await.unwrap();
+        assert_eq!(networks.access_point_ssid.as_deref(), Some(MOCK_AP_SSID));
+        assert_eq!(networks.configured.len(), 1);
+        assert!(networks.scanned.len() > 1);
+
+        camera
+            .configure_wifi_network("Office", WifiSecurity::Wpa2, "password1")
+            .await
+            .unwrap();
+        camera.connect_wifi_network("Office").await.unwrap();
+        camera.remove_wifi_network("Home").await.unwrap();
+        let configured = camera.wifi_networks().await.unwrap().configured;
+        assert_eq!(configured.len(), 1);
+        assert_eq!(configured[0].ssid, "Office");
+        assert!(camera.connect_wifi_network("Home").await.is_err());
     }
 }

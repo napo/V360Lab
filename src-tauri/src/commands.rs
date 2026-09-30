@@ -14,7 +14,7 @@ use crate::activity::{ActivityEvent, Step, ACTIVITY_EVENT};
 use crate::camera::address::DEFAULT_CAMERA_ADDRESS;
 use crate::camera::{
     CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList,
-    MediaItem,
+    MediaItem, WifiNetworks, WifiSecurity,
 };
 use crate::discovery::{self, DiscoveredCamera};
 use crate::downloads::{self, DownloadOptions, DownloadProgress, DownloadReport};
@@ -24,6 +24,7 @@ use crate::preview::{self, PreviewFailure};
 use crate::settings::Settings;
 use crate::state::AppState;
 use crate::virb::{GarminVirb360Client, MockVirb360Client};
+use crate::wifi;
 
 type CommandResult<T> = Result<T, AppError>;
 
@@ -416,4 +417,87 @@ pub async fn start_preview(
 pub async fn stop_preview(state: State<'_, AppState>) -> CommandResult<()> {
     state.preview.stop().await;
     Ok(())
+}
+
+/// Wi-Fi networks saved on and visible to the camera.
+#[tauri::command]
+pub async fn get_wifi_networks(state: State<'_, AppState>) -> CommandResult<WifiNetworks> {
+    let result = async { Ok(state.camera().await?.wifi_networks().await?) }.await;
+    logged("get_wifi_networks", result)
+}
+
+/// Saves a network on the camera. The camera keeps its current network
+/// until [`connect_wifi_network`] is called.
+#[tauri::command]
+pub async fn add_wifi_network(
+    state: State<'_, AppState>,
+    ssid: String,
+    security: WifiSecurity,
+    password: String,
+) -> CommandResult<CommandAck> {
+    let result = async {
+        let password = wifi::validate(&ssid, security, &password)?;
+        log::info!(
+            "Saving Wi-Fi network \"{ssid}\" ({}) on the camera",
+            security.as_str()
+        );
+        Ok(state
+            .camera()
+            .await?
+            .configure_wifi_network(&ssid, security, password)
+            .await?)
+    }
+    .await;
+    logged("add_wifi_network", result)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiSwitch {
+    /// False when the camera dropped the connection before answering: it
+    /// has most likely started switching anyway.
+    confirmed: bool,
+}
+
+/// Makes the camera join a saved network. The camera leaves its current
+/// network, so the connection is closed: the user reconnects once this
+/// device is on the same network.
+#[tauri::command]
+pub async fn connect_wifi_network(
+    state: State<'_, AppState>,
+    ssid: String,
+) -> CommandResult<WifiSwitch> {
+    let result = async {
+        let camera = state.camera().await?;
+        log::info!("Asking the camera to join Wi-Fi network \"{ssid}\"");
+        let confirmed = match camera.connect_wifi_network(&ssid).await {
+            Ok(_) => true,
+            Err(
+                e @ (CameraError::Unreachable { .. }
+                | CameraError::Timeout { .. }
+                | CameraError::Transfer { .. }),
+            ) => {
+                log::warn!("No answer to connectNetwork, the camera is probably switching: {e}");
+                false
+            }
+            Err(e) => return Err(e.into()),
+        };
+        state.set_camera(None).await;
+        Ok(WifiSwitch { confirmed })
+    }
+    .await;
+    logged("connect_wifi_network", result)
+}
+
+#[tauri::command]
+pub async fn remove_wifi_network(
+    state: State<'_, AppState>,
+    ssid: String,
+) -> CommandResult<CommandAck> {
+    let result = async {
+        log::info!("Removing Wi-Fi network \"{ssid}\" from the camera");
+        Ok(state.camera().await?.remove_wifi_network(&ssid).await?)
+    }
+    .await;
+    logged("remove_wifi_network", result)
 }

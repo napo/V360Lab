@@ -2,6 +2,8 @@
 
 use serde_json::{json, Value};
 
+use crate::camera::WifiSecurity;
+
 /// Commands V360Lab sends to the camera.
 ///
 /// Other VIRB commands (e.g. `locate`) are not used yet.
@@ -32,6 +34,61 @@ pub enum VirbCommand {
     /// Starts the live preview and returns its RTSP URL. Without
     /// `streamType: "rtp"` firmware 4.20 answers `"result": 0`.
     LivePreview,
+    /// Wi-Fi management. All operations share the `networks` command and
+    /// are selected by `subCommand` (see [`NetworkCommand`]).
+    Networks(NetworkCommand),
+}
+
+/// `networks` sub-commands, as sent by Garmin's VIRB app (recovered from
+/// its native library; see `docs/virb-http-api.md`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NetworkCommand {
+    /// Name of the network the camera creates itself.
+    GetApSsid,
+    /// Networks saved on the camera.
+    GetConfiguredNetworks,
+    /// Networks the camera can see.
+    GetScannedNetworks,
+    /// Saves a network the camera joins as a client (`type: "station"`).
+    Configure {
+        ssid: String,
+        security: WifiSecurity,
+        password: String,
+    },
+    /// Makes the camera leave its own network and join a saved one.
+    Connect { ssid: String },
+    /// Removes a saved network.
+    Remove { ssid: String },
+}
+
+impl NetworkCommand {
+    pub fn sub_command(&self) -> &'static str {
+        match self {
+            Self::GetApSsid => "getApSSID",
+            Self::GetConfiguredNetworks => "getConfiguredNetworks",
+            Self::GetScannedNetworks => "getScannedNetworks",
+            Self::Configure { .. } => "configureNetwork",
+            Self::Connect { .. } => "connectNetwork",
+            Self::Remove { .. } => "removeNetwork",
+        }
+    }
+
+    fn args(&self) -> Option<Value> {
+        match self {
+            Self::Configure {
+                ssid,
+                security,
+                password,
+            } => Some(json!({
+                "type": "station",
+                "securityType": security.as_str(),
+                "ssid": ssid,
+                "password": password,
+            })),
+            Self::Connect { ssid } | Self::Remove { ssid } => Some(json!({ "ssid": ssid })),
+            _ => None,
+        }
+    }
 }
 
 impl VirbCommand {
@@ -49,6 +106,25 @@ impl VirbCommand {
             Self::UpdateFeature { .. } => "updateFeature",
             Self::DeleteFile { .. } => "deleteFile",
             Self::LivePreview => "livePreview",
+            Self::Networks(_) => "networks",
+        }
+    }
+
+    /// Name used in logs and error messages: the sub-command for `networks`.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Networks(network) => network.sub_command(),
+            _ => self.name(),
+        }
+    }
+
+    /// Secret carried by the payload, to be kept out of logs.
+    pub fn secret(&self) -> Option<&str> {
+        match self {
+            Self::Networks(NetworkCommand::Configure { password, .. }) if !password.is_empty() => {
+                Some(password)
+            }
+            _ => None,
         }
     }
 
@@ -62,6 +138,14 @@ impl VirbCommand {
             }),
             Self::DeleteFile { files } => json!({ "command": self.name(), "files": files }),
             Self::LivePreview => json!({ "command": self.name(), "streamType": "rtp" }),
+            Self::Networks(network) => {
+                let mut payload =
+                    json!({ "command": self.name(), "subCommand": network.sub_command() });
+                if let Some(args) = network.args() {
+                    payload["args"] = args;
+                }
+                payload
+            }
             _ => json!({ "command": self.name() }),
         }
     }
@@ -96,6 +180,36 @@ mod tests {
         assert_eq!(
             delete.payload()["files"][0],
             "http://192.168.0.1:80/DCIM/100_VIRB/V0010001.MP4"
+        );
+    }
+
+    #[test]
+    fn network_payloads_match_the_official_app() {
+        assert_eq!(
+            VirbCommand::Networks(NetworkCommand::GetScannedNetworks).payload(),
+            json!({ "command": "networks", "subCommand": "getScannedNetworks" })
+        );
+        let configure = VirbCommand::Networks(NetworkCommand::Configure {
+            ssid: "Home".into(),
+            security: WifiSecurity::Wpa2,
+            password: "secret123".into(),
+        });
+        assert_eq!(
+            configure.payload(),
+            json!({
+                "command": "networks",
+                "subCommand": "configureNetwork",
+                "args": { "type": "station", "securityType": "WPA2", "ssid": "Home", "password": "secret123" }
+            })
+        );
+        assert_eq!(configure.label(), "configureNetwork");
+        assert_eq!(configure.secret(), Some("secret123"));
+        assert_eq!(
+            VirbCommand::Networks(NetworkCommand::Connect {
+                ssid: "Home".into()
+            })
+            .payload(),
+            json!({ "command": "networks", "subCommand": "connectNetwork", "args": { "ssid": "Home" } })
         );
     }
 }

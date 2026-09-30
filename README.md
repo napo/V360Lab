@@ -38,6 +38,7 @@ V360Lab is a desktop toolkit that:
 - Media library: file name, type, date/time, duration, size, lens mode, thumbnail, preview URLs, FIT availability
 - Download media, FIT telemetry and thumbnails, plus a `metadata.json` holding the original camera metadata. Items can be downloaded one by one or as a selection.
 - Delete files on the camera, one by one or as a selection, after a native confirmation dialog. Each deletion is verified against the media list.
+- Camera Wi-Fi (Advanced → Wi-Fi): show the camera's own network, the networks it has saved and the ones it can see; save a new network (WPA2, WPA, WEP or open), remove one, or make the camera join a saved network. After switching, this device must join the same network and search for the camera again. **Not yet tested on a real camera** (see the API notes).
 - Mock camera mode for development without hardware
 - Error messages written for the user, with technical details available in debug mode
 - User interface in English and Italian (follows the system language by default; switchable from the sidebar or Settings)
@@ -222,6 +223,7 @@ Installers and bundles are written to `src-tauri/target/release/bundle/`.
 | TCP connect | 3 s |
 | API command / thumbnail | 10 s total |
 | `mediaList` | 60 s total |
+| Wi-Fi network scan | 30 s total |
 | Download | 30 s without data (no total limit, since videos can be several GB) |
 
 ## VIRB API notes
@@ -246,6 +248,8 @@ Confirmed:
 - `mediaList` is slow on a full card (about 4 s and 280 KB for ~1000 files), so it gets a 60 s timeout.
 
 Still assumed (not yet observed):
+
+- Wi-Fi management (`{"command":"networks","subCommand":…}`) follows Garmin's VIRB app, recovered from its native library ([docs/virb-http-api.md](docs/virb-http-api.md)): `getApSSID`, `getConfiguredNetworks`, `getScannedNetworks`, `configureNetwork` (`args`: `type: "station"`, `securityType` `WPA2`/`WPA`/`WEP`/`Open`, `ssid`, `password`), `connectNetwork` and `removeNetwork` (`args.ssid`). The app reads lists from `subCommand.networks[]` (`ssid`, `securityType`); V360Lab also accepts them at the top level. No response has been observed on firmware 4.20 yet: `cargo test --test real_camera reads_wifi_networks -- --ignored --nocapture` prints them.
 
 - How the camera reports status during a photo interval capture, and whether `snapPicture` / `stopStillRecording` start and stop it. V360Lab assumes they do.
 - Whether the photo lens format has its own feature (`photo360Format`) or reuses `video360Format`. The UI uses whichever exists.

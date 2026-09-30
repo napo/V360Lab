@@ -3,6 +3,10 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
+## Unreleased
+
+- **Camera Wi-Fi** (Advanced → Wi-Fi): save a network on the camera, choosing it from the networks the camera sees or typing its name, remove saved networks, and make the camera join one, as in Garmin's VIRB app. Network names and passwords are checked before they are sent. Not yet tested on a real camera.
+
 ## 0.2.0
 
 - **Photo shutter as a lens diaphragm**: the photo and interval shutter is a six-blade diaphragm, closed at rest, that opens onto the lens when a picture is taken; during an interval capture it stays open with a stop sign.

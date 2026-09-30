@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use crate::camera::{
     CameraError, CameraFeature, CameraStatus, CommandAck, DeviceInfo, FeatureList, MediaItem,
-    MediaType, RecordingState,
+    MediaType, RecordingState, WifiNetwork, WifiSecurity,
 };
 
 use super::errors::snippet;
@@ -426,6 +426,68 @@ pub fn check_feature_value(list: &FeatureList, key: &str, value: &str) -> Result
     }
 }
 
+/// Where `networks` responses may carry their data. Garmin's app reads
+/// `subCommand` (e.g. `{"subCommand": {"networks": [...]}}`); the top level
+/// is accepted too, since no real response has been observed yet.
+fn network_payloads(response: &Value) -> impl Iterator<Item = &Value> {
+    [
+        response.get("subCommand"),
+        response.get("args"),
+        Some(response),
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|v| v.is_object())
+}
+
+/// Networks from a `getConfiguredNetworks` / `getScannedNetworks` response.
+/// A response without a network list means "no networks".
+pub fn parse_wifi_networks(response: &Value) -> Vec<WifiNetwork> {
+    let Some(list) =
+        network_payloads(response).find_map(|v| v.get("networks").and_then(Value::as_array))
+    else {
+        return Vec::new();
+    };
+    let mut networks: Vec<WifiNetwork> = Vec::new();
+    for entry in list {
+        let (ssid, security_raw) = match entry {
+            Value::String(ssid) => (Some(ssid.as_str()), None),
+            Value::Object(_) => (
+                ["ssid", "SSID", "name"]
+                    .iter()
+                    .find_map(|key| entry.get(*key).and_then(Value::as_str)),
+                ["securityType", "security"]
+                    .iter()
+                    .find_map(|key| entry.get(*key).and_then(Value::as_str)),
+            ),
+            _ => (None, None),
+        };
+        // Hidden networks have no name and cannot be selected.
+        let Some(ssid) = ssid.filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        // Scans can list the same network once per access point.
+        if networks.iter().any(|n| n.ssid == ssid) {
+            continue;
+        }
+        networks.push(WifiNetwork {
+            ssid: ssid.to_string(),
+            security: security_raw.and_then(WifiSecurity::parse),
+            security_raw: security_raw.map(str::to_string),
+        });
+    }
+    networks
+}
+
+/// Camera network name from a `getApSSID` response.
+pub fn parse_ap_ssid(response: &Value) -> Option<String> {
+    network_payloads(response)
+        .find_map(|v| v.get("ssid").and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
 pub fn command_ack(command: &str, response: Value) -> CommandAck {
     CommandAck {
         command: command.to_string(),
@@ -698,5 +760,38 @@ mod tests {
         );
         assert_eq!(parse_timestamp(&json!("yesterday")), None);
         assert_eq!(parse_timestamp(&json!(0)), None);
+    }
+
+    #[test]
+    fn parses_wifi_networks_where_the_official_app_reads_them() {
+        let response = json!({
+            "result": 1,
+            "subCommand": { "networks": [
+                { "ssid": "Home", "securityType": "WPA2" },
+                { "ssid": "Home", "securityType": "WPA2" },
+                { "ssid": "", "securityType": "WPA2" },
+                { "ssid": "Cafe", "securityType": "Open" },
+                { "ssid": "Lab", "securityType": "WPA3" }
+            ]}
+        });
+        let networks = parse_wifi_networks(&response);
+        let names: Vec<_> = networks.iter().map(|n| n.ssid.as_str()).collect();
+        assert_eq!(names, ["Home", "Cafe", "Lab"]);
+        assert_eq!(networks[0].security, Some(WifiSecurity::Wpa2));
+        assert_eq!(networks[1].security, Some(WifiSecurity::Open));
+        assert_eq!(networks[2].security, None);
+        assert_eq!(networks[2].security_raw.as_deref(), Some("WPA3"));
+    }
+
+    #[test]
+    fn wifi_parsing_accepts_top_level_data() {
+        let networks = parse_wifi_networks(&json!({ "result": 1, "networks": ["Home"] }));
+        assert_eq!(networks[0].ssid, "Home");
+        assert!(parse_wifi_networks(&json!({ "result": 1 })).is_empty());
+        assert_eq!(
+            parse_ap_ssid(&json!({ "result": 1, "subCommand": { "ssid": "VIRB 360 1234" } })),
+            Some("VIRB 360 1234".into())
+        );
+        assert_eq!(parse_ap_ssid(&json!({ "result": 1 })), None);
     }
 }

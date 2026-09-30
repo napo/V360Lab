@@ -17,6 +17,7 @@ pub mod settings;
 pub mod state;
 pub mod telemetry;
 pub mod virb;
+pub mod wifi;
 
 use tauri::Manager;
 
@@ -94,6 +95,10 @@ pub fn run() {
             commands::download_fit,
             commands::start_preview,
             commands::stop_preview,
+            commands::get_wifi_networks,
+            commands::add_wifi_network,
+            commands::connect_wifi_network,
+            commands::remove_wifi_network,
         ])
         .run(tauri::generate_context!())
         .expect("error while running V360Lab");
