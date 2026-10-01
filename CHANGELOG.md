@@ -3,7 +3,7 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
-## Unreleased
+## 0.4.0
 
 - **Play videos** from the media library, streamed from the camera through the backend with seeking: the low-resolution copy (`.GLV`) by default, the original on request. 360° videos and photos open in the interactive 360° view.
 - **Telemetry under the video**: the FIT file is decoded (native parser) and shown as a GPS track, speed and altitude charts and summary figures (distance, top and average speed, altitude range, climb), synchronized with playback. Tapping the track or the chart seeks the video.
