@@ -67,6 +67,12 @@ struct VirbStatus {
     gps_latitude: Option<f64>,
     #[serde(default, deserialize_with = "flex::opt_f64")]
     gps_longitude: Option<f64>,
+    #[serde(default, deserialize_with = "flex::opt_bool")]
+    bt_headset: Option<bool>,
+    #[serde(default, deserialize_with = "flex::opt_bool")]
+    bt_sensor: Option<bool>,
+    #[serde(default, deserialize_with = "flex::opt_bool")]
+    ant_sensor: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -213,6 +219,9 @@ pub fn parse_status(response: &Value) -> Result<CameraStatus, CameraError> {
         recording_time_remaining_secs: parsed.recording_time_remaining,
         gps_latitude: parsed.gps_latitude,
         gps_longitude: parsed.gps_longitude,
+        bluetooth_headset: parsed.bt_headset,
+        bluetooth_sensor: parsed.bt_sensor,
+        ant_sensor: parsed.ant_sensor,
         raw: entry.clone(),
     })
 }
@@ -781,6 +790,8 @@ mod tests {
         // ~119 GiB card: KiB converted to bytes.
         assert_eq!(status.storage_total_bytes, Some(125_009_920 * 1024));
         assert_eq!(status.mode, None, "firmware 4.20 reports no mode in status");
+        assert_eq!(status.bluetooth_headset, Some(false));
+        assert_eq!(status.ant_sensor, Some(false));
 
         let features = parse_features(&fixture("real_fw420/features.json")).unwrap();
         assert_eq!(features.features.len(), 22);

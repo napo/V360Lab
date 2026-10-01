@@ -2113,3 +2113,46 @@ details.panel:not([open]) > summary {
   opacity: 0.01;
   pointer-events: none;
 }
+
+.accessory-badge {
+  font-size: 11px;
+}
+
+.telemetry-roll,
+.telemetry-pitch {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.telemetry-roll {
+  stroke: #d97706;
+}
+
+.telemetry-pitch {
+  stroke: #7c3aed;
+}
+
+.telemetry-zero {
+  stroke: var(--border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.legend-roll::before,
+.legend-pitch::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.legend-roll::before {
+  background: #d97706;
+}
+
+.legend-pitch::before {
+  background: #7c3aed;
+}

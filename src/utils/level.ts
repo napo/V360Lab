@@ -134,3 +134,21 @@ export function levelAt(samples: AccelSample[], axes: CameraAxes | null, timeMs:
   const up = reading && upInImage(reading, axes);
   return up ? levelingMatrix(up) : null;
 }
+
+export interface TiltPoint {
+  timestampMs: number;
+  rollDeg: number;
+  pitchDeg: number;
+}
+
+/** Roll and pitch over time, from readings smoothed over `windowMs`. */
+export function tiltSeries(samples: AccelSample[], axes: CameraAxes | null, windowMs = 1000): TiltPoint[] {
+  if (!axes) return [];
+  const points: TiltPoint[] = [];
+  for (const sample of samples) {
+    const reading = accelAt(samples, sample.timestampMs, windowMs);
+    const up = reading && upInImage(reading, axes);
+    if (up) points.push({ timestampMs: sample.timestampMs, ...tiltAngles(up) });
+  }
+  return points;
+}

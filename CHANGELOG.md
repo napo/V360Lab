@@ -6,6 +6,9 @@ of the tagged version as the GitHub release notes.
 ## Unreleased
 
 - **Horizon levelling (experimental)**: the FIT accelerometer is decoded (with the camera's calibration) and used to straighten 360° images: a "Level horizon" switch in the 360° video view and in the frame extraction, and the camera's roll and pitch in the telemetry panel. Which sensor axis points forward still has to be confirmed on a real camera (see the README).
+- **Tilt chart**: the camera's roll and pitch over the video, under the speed and altitude chart (tap to seek). Useful to check the levelling.
+- **GPS jumps removed**: positions implying an impossible speed (well above the speed the GPS reports) are dropped from the track, distance, exports and frames; the panel shows how many.
+- **Connected accessories**: a headset, Bluetooth sensor or ANT+ sensor connected to the camera (`btHeadset`, `btSensor`, `antSensor` in its status) is shown on the capture screen and in the status panel.
 - The FIT decoder reads array fields (several samples per message).
 
 ## 0.4.0

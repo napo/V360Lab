@@ -8,6 +8,7 @@ import { useI18n } from "../hooks/useI18n";
 import { featureLabel } from "../i18n/featureLabels";
 import type { CameraAction, CameraFeature } from "../types/camera";
 import { featureValue, findFeature, findFirstFeature, optionValue } from "../utils/features";
+import { connectedAccessories } from "../utils/accessories";
 import { formatBytes, formatDuration, formatPercent } from "../utils/format";
 
 const PHOTO_MODE = "photoShootingMode";
@@ -100,6 +101,11 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
         {status?.storageAvailableBytes != null && (
           <span>{t("capture.free", { free: formatBytes(status.storageAvailableBytes) })}</span>
         )}
+        {connectedAccessories(status).map((key) => (
+          <span key={key} className="badge accessory-badge">
+            {t(key)}
+          </span>
+        ))}
       </div>
 
       <LivePreview restartKey={previewKey} spherical={featureValue(chips[0][0]) === "360"} />

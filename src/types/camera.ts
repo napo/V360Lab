@@ -33,6 +33,10 @@ export interface CameraStatus {
   recordingTimeRemainingSecs: number | null;
   gpsLatitude: number | null;
   gpsLongitude: number | null;
+  /** Accessories connected to the camera (null: not reported). */
+  bluetoothHeadset: boolean | null;
+  bluetoothSensor: boolean | null;
+  antSensor: boolean | null;
   raw: JsonValue;
 }
 
@@ -161,6 +165,8 @@ export interface TrackSummary {
   elevationGainM: number;
   sampleCount: number;
   hasPosition: boolean;
+  /** Positions dropped as GPS jumps. */
+  droppedPositions: number;
 }
 
 /** The GPS track of a video, aligned with its timeline. */

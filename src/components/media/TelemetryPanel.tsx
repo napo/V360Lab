@@ -6,7 +6,7 @@ import type { MediaItem } from "../../types/camera";
 import type { AppError } from "../../types/errors";
 import { toAppError } from "../../utils/errors";
 import { formatDuration } from "../../utils/format";
-import { accelAt, detectAxes, tiltAngles, upInImage } from "../../utils/level";
+import { accelAt, detectAxes, tiltAngles, tiltSeries, upInImage } from "../../utils/level";
 import { nearestPoint, projectTrack, sampleIndexAt, seriesPath } from "../../utils/telemetry";
 import { ErrorBanner } from "../ErrorBanner";
 import { FrameExtractor } from "./FrameExtractor";
@@ -15,6 +15,8 @@ const MAP_W = 320;
 const MAP_H = 220;
 const CHART_W = 600;
 const CHART_H = 70;
+/** The tilt chart shows ±TILT_RANGE degrees. */
+const TILT_RANGE = 45;
 
 interface TelemetryPanelProps {
   item: MediaItem;
@@ -66,6 +68,21 @@ export function TelemetryPanel({ item, time, seek, telemetry: state }: Telemetry
       ? telemetry.samples[telemetry.samples.length - 1].timestampMs - telemetry.videoStartMs
       : 0,
   );
+  const tilt = useMemo(() => {
+    if (!telemetry || !axes) return null;
+    const series = tiltSeries(telemetry.accelerometer, axes);
+    if (series.length === 0) return null;
+    const path = (value: (p: (typeof series)[number]) => number) =>
+      series
+        .map((p) => {
+          const x = ((p.timestampMs - telemetry.videoStartMs) / Math.max(durationMs, 1)) * CHART_W;
+          const v = Math.max(-TILT_RANGE, Math.min(TILT_RANGE, value(p)));
+          const y = CHART_H / 2 - (v / TILT_RANGE) * (CHART_H / 2 - 2);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ");
+    return { roll: path((p) => p.rollDeg), pitch: path((p) => p.pitchDeg) };
+  }, [telemetry, axes, durationMs]);
   const charts = useMemo(() => {
     if (!telemetry) return null;
     const { samples, videoStartMs } = telemetry;
@@ -82,7 +99,7 @@ export function TelemetryPanel({ item, time, seek, telemetry: state }: Telemetry
   const { samples, summary, videoStartMs } = telemetry;
   const reading = axes ? accelAt(telemetry.accelerometer, videoStartMs + time * 1000) : null;
   const upNow = reading && axes ? upInImage(reading, axes) : null;
-  const tilt = upNow ? tiltAngles(upNow) : null;
+  const tiltNow = upNow ? tiltAngles(upNow) : null;
   const current = sampleIndexAt(samples, videoStartMs + time * 1000);
   const sampleNow = current >= 0 ? samples[current] : null;
   const marker = current >= 0 ? points[current] : null;
@@ -108,10 +125,10 @@ export function TelemetryPanel({ item, time, seek, telemetry: state }: Telemetry
             {kmh(sampleNow?.speedMps)} · {metres(sampleNow?.altitudeM)}
           </dd>
         </div>
-        {tilt && (
+        {tiltNow && (
           <div>
             <dt>{t("telemetry.tilt")}</dt>
-            <dd>{t("telemetry.tiltValue", { roll: tilt.rollDeg.toFixed(0), pitch: tilt.pitchDeg.toFixed(0) })}</dd>
+            <dd>{t("telemetry.tiltValue", { roll: tiltNow.rollDeg.toFixed(0), pitch: tiltNow.pitchDeg.toFixed(0) })}</dd>
           </div>
         )}
         <div>
@@ -174,7 +191,35 @@ export function TelemetryPanel({ item, time, seek, telemetry: state }: Telemetry
           <span className="legend-altitude">{t("telemetry.altitudeLine")}</span>
           <span>{formatDuration(durationMs / 1000)}</span>
           {!telemetry.startFromCameraEvent && <span>{t("telemetry.approximateSync")}</span>}
+          {summary.droppedPositions > 0 && (
+            <span>{t("telemetry.droppedPositions", { count: summary.droppedPositions })}</span>
+          )}
         </p>
+        {tilt && (
+          <>
+            <svg
+              className="telemetry-chart"
+              viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+              preserveAspectRatio="none"
+              role="img"
+              aria-label={t("telemetry.tiltChart")}
+              onClick={(e) => {
+                const { x } = svgPoint(e, CHART_W, CHART_H);
+                seek(((x / CHART_W) * durationMs) / 1000);
+              }}
+            >
+              <line x1={0} x2={CHART_W} y1={CHART_H / 2} y2={CHART_H / 2} className="telemetry-zero" />
+              <polyline points={tilt.roll} className="telemetry-roll" />
+              <polyline points={tilt.pitch} className="telemetry-pitch" />
+              <line x1={playhead} x2={playhead} y1={0} y2={CHART_H} className="telemetry-playhead" />
+            </svg>
+            <p className="muted small telemetry-legend">
+              <span className="legend-roll">{t("telemetry.roll")}</span>
+              <span className="legend-pitch">{t("telemetry.pitch")}</span>
+              <span>±{TILT_RANGE}°</span>
+            </p>
+          </>
+        )}
       </div>
       {summary.hasPosition && (
         <div className="form-actions">

@@ -162,8 +162,11 @@ impl CameraClient for MockVirb360Client {
         });
         let available = TOTAL_SPACE.saturating_sub(used + 12_000_000_000);
         models::parse_status(&json!({
+            "antSensor": 1,
             "apiMax": "2.20",
             "apiMin": "1.00",
+            "btHeadset": 0,
+            "btSensor": 0,
             // The VIRB reports storage in KiB.
             "availableSpace": available / 1024,
             "batteryChargingState": "discharging",

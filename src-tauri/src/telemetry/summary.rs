@@ -15,6 +15,8 @@ pub const MAX_POINTS: usize = 5_000;
 pub const MAX_ACCEL_POINTS: usize = 20_000;
 /// GPS noise below this is not counted as climbing.
 const ELEVATION_NOISE_M: f64 = 2.0;
+/// Fastest plausible movement when the GPS reports no speed (360 km/h).
+const MAX_SPEED_MPS: f64 = 100.0;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +30,8 @@ pub struct TrackSummary {
     pub elevation_gain_m: f64,
     pub sample_count: usize,
     pub has_position: bool,
+    /// Positions dropped as GPS jumps (see [`drop_position_jumps`]).
+    pub dropped_positions: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -99,6 +103,35 @@ pub fn summarize(samples: &[TelemetrySample]) -> TrackSummary {
     summary
 }
 
+/// Removes the position of fixes that would mean an impossible jump from
+/// the previous good fix: faster than twice the speed the GPS reports plus
+/// a margin, or than [`MAX_SPEED_MPS`]. The rest of the sample (altitude,
+/// speed) is kept. Returns how many positions were dropped.
+pub fn drop_position_jumps(samples: &mut [TelemetrySample]) -> usize {
+    let mut dropped = 0;
+    let mut previous: Option<(i64, f64, f64)> = None;
+    for sample in samples.iter_mut() {
+        let (Some(lat), Some(lon)) = (sample.latitude, sample.longitude) else {
+            continue;
+        };
+        if let Some((t, plat, plon)) = previous {
+            let seconds = ((sample.timestamp_ms - t) as f64 / 1000.0).max(0.05);
+            let implied = haversine_m(plat, plon, lat, lon) / seconds;
+            let limit = sample
+                .speed_mps
+                .map_or(MAX_SPEED_MPS, |v| (v * 2.0 + 15.0).min(MAX_SPEED_MPS));
+            if implied > limit {
+                sample.latitude = None;
+                sample.longitude = None;
+                dropped += 1;
+                continue;
+            }
+        }
+        previous = Some((sample.timestamp_ms, lat, lon));
+    }
+    dropped
+}
+
 /// Keeps at most `max` samples, evenly spread, always keeping the last.
 fn thin<T: Clone>(samples: Vec<T>, max: usize) -> Vec<T> {
     if samples.len() <= max || max < 2 {
@@ -147,11 +180,12 @@ pub fn for_video(
         }
         _ => Vec::new(),
     };
-    let samples = if window.is_empty() {
+    let mut samples = if window.is_empty() {
         track.samples
     } else {
         window
     };
+    let dropped_positions = drop_position_jumps(&mut samples);
     // Same window for the accelerometer, with a margin for smoothing.
     let accelerometer: Vec<AccelSample> = match duration_secs {
         Some(duration) if duration > 0.0 => {
@@ -168,7 +202,10 @@ pub fn for_video(
         accelerometer: thin(accelerometer, MAX_ACCEL_POINTS),
         video_start_ms,
         start_from_camera_event: event_start.is_some(),
-        summary: summarize(&samples),
+        summary: TrackSummary {
+            dropped_positions,
+            ..summarize(&samples)
+        },
         samples: thin(samples, max_points),
         camera_events: track.camera_events,
     }
@@ -244,5 +281,21 @@ mod tests {
         assert_eq!(video.samples.len(), 100);
         assert_eq!(video.samples.last().unwrap().timestamp_ms, 99_900);
         assert_eq!(video.summary.sample_count, 1000);
+    }
+
+    #[test]
+    fn drops_gps_jumps() {
+        // Walking north at 1.5 m/s; the third fix jumps ~1 km away.
+        let mut samples = vec![
+            sample(0, 46.0, 11.0, 200.0, 1.5),
+            sample(1000, 46.00001, 11.0, 200.0, 1.5),
+            sample(2000, 46.01, 11.0, 200.0, 1.5),
+            sample(3000, 46.00003, 11.0, 200.0, 1.5),
+        ];
+        assert_eq!(drop_position_jumps(&mut samples), 1);
+        assert_eq!(samples[2].latitude, None);
+        assert_eq!(samples[2].altitude_m, Some(200.0));
+        assert!(samples[3].latitude.is_some());
+        assert!(summarize(&samples).distance_m < 5.0);
     }
 }

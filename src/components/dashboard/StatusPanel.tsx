@@ -9,6 +9,7 @@ import {
   formatShootingMode,
   storageUsedFraction,
 } from "../../utils/format";
+import { connectedAccessories } from "../../utils/accessories";
 import { ErrorBanner } from "../ErrorBanner";
 import { JsonViewer } from "../JsonViewer";
 import { KeyValueList } from "../KeyValueList";
@@ -49,6 +50,13 @@ export function StatusPanel() {
             ),
           },
           { label: t("status.mode"), value: status?.mode ?? formatShootingMode(shootingMode) },
+          {
+            label: t("status.accessories"),
+            value:
+              status && [status.bluetoothHeadset, status.bluetoothSensor, status.antSensor].some((v) => v !== null)
+                ? connectedAccessories(status).map((key) => t(key)).join(", ") || t("status.noAccessories")
+                : null,
+          },
           {
             label: t("status.battery"),
             value:

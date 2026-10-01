@@ -51,6 +51,12 @@ pub struct CameraStatus {
     pub recording_time_remaining_secs: Option<f64>,
     pub gps_latitude: Option<f64>,
     pub gps_longitude: Option<f64>,
+    /// A Bluetooth headset or microphone is connected to the camera.
+    pub bluetooth_headset: Option<bool>,
+    /// A Bluetooth sensor (heart rate, …) is connected.
+    pub bluetooth_sensor: Option<bool>,
+    /// An ANT+ sensor is connected.
+    pub ant_sensor: Option<bool>,
     pub raw: Value,
 }
 
