@@ -39,7 +39,8 @@ V360Lab is a desktop toolkit that:
 - Media library: file name, type, date/time, duration, size, lens mode, thumbnail, preview URLs, FIT availability, favourites (star, `setFavorite`, verified against the media list)
 - Play videos and open photos from the library, streamed from the camera through the backend (`virb://` protocol with Range support, so videos can be seeked). Videos start from the camera's low-resolution copy (`.GLV`), with the original one tap away; 360° videos and photos open in the interactive 360° view.
 - Telemetry under the video: the FIT file is decoded (`gps_metadata`, `record`, `camera_event`, `timestamp_correlation`), aligned with the video (on the camera's "video start" event when present, otherwise on the media date) and shown as a GPS track, speed and altitude charts and summary figures. The marker follows playback; tapping the track or the chart seeks the video. The track can be exported as GPX or GeoJSON (with each point's UTC time and position in the video).
-- Georeferenced frames: extract frames of a video every N metres travelled or every N seconds. Each frame is a JPEG with EXIF GPS (position, altitude, UTC time, speed, direction of travel); 360° frames are 2:1 equirectangular with XMP GPano panorama tags, ready for Mapillary, Panoramax or photogrammetry. A `frames.geojson` index lists them. Frames are decoded by the webview from the camera's video, so the original 5.7K file needs a device able to decode it; the preview copy always works but is low resolution.
+- Georeferenced frames: extract frames of a video every N metres travelled or every N seconds. Each frame is a JPEG with EXIF GPS (position, altitude, UTC time, speed, direction of travel); 360° frames are 2:1 equirectangular with XMP GPano panorama tags, ready for Mapillary, Panoramax or photogrammetry. A `frames.geojson` index lists them. 360° frames can be levelled (experimental, see below).
+- Horizon levelling (experimental): the FIT accelerometer (`accelerometer_data` with `three_d_sensor_calibration`) gives the camera's tilt over time; the 360° video view and the extracted 360° frames can be rotated so that the horizon is straight. The telemetry panel shows the estimated roll and pitch. Frames are decoded by the webview from the camera's video, so the original 5.7K file needs a device able to decode it; the preview copy always works but is low resolution.
 - Download media, FIT telemetry and thumbnails, plus a `metadata.json` holding the original camera metadata. Items can be downloaded one by one or as a selection.
 - Delete files on the camera, one by one or as a selection, after a native confirmation dialog. Each deletion is verified against the media list.
 - Camera Wi-Fi (Advanced → Wi-Fi): show the camera's own network, the networks it has saved and the ones it can see; save a new network (WPA2, WPA, WEP or open), remove one, or make the camera join a saved network. After switching, this device must join the same network and search for the camera again. **Not yet tested on a real camera** (see the API notes).
@@ -272,7 +273,7 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 - Settings are locked while recording.
 - FIT files of deleted videos remain on the camera (`GMetrix/`). Firmware 4.20 refuses to delete them over Wi-Fi; remove them from the SD card or USB storage.
 - On firmware 4.20 the dashboard mode comes from the `shootingMode` feature. It is read after connecting and on manual refresh, not on every status poll.
-- FIT decoding covers the GPS track and camera events; IMU data (accelerometer, gyroscope, magnetometer) is not decoded yet. The track is drawn without a background map, so that no data leaves the device.
+- FIT decoding covers the GPS track, camera events and the accelerometer; gyroscope and magnetometer are not decoded yet. Horizon levelling uses only the accelerometer averaged over one second, so fast movements (e.g. on a bike) can leave some wobble. The track is drawn without a background map, so that no data leaves the device.
 - Video playback depends on the system's codecs: on Linux, H.264 needs the GStreamer `gst-libav` plugin. The original 360° files (up to 5.7K) may be too heavy for phones; the low-resolution copy is the default.
 - The capture date folder uses UTC.
 - Only one camera can be connected at a time.
@@ -287,6 +288,8 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 4. Whether `snapPicture` is accepted while recording or in video mode (the UI currently disables it while recording).
 5. The features added in 0.3.0 and later, written from Garmin's app but not yet run against the camera: Wi-Fi management, `commandList`, `locate`/`found`, `enableIDR`, `sensors`, `standby`, `mediaDirList`, `setFavorite`, the orientation of the 360° view, playback of `.GLV` files, and the FIT decoding of real VIRB files.
 
+6. Horizon levelling: which accelerometer axis points out of the front lens is a guess (`FORWARD_AXIS_GUESS` in `src/utils/level.ts`); the vertical axis is detected from the data. To confirm it, record a short video holding the camera still: 5 s upright, 5 s tilted about 30° to the right, 5 s tilted about 30° forward (front lens down). In the telemetry panel the tilt should read about 0°, then roll +30°, then pitch +30°. If roll and pitch are swapped or have the wrong sign, the guess needs changing. The `decodes_real_fit_telemetry` hardware test also prints the accelerometer readings.
+
 Please report findings (with the raw JSON from debug mode) in an issue.
 
 ## Roadmap
@@ -299,7 +302,7 @@ Please report findings (with the raw JSON from debug mode) in an issue.
 - Media/FIT download
 
 **Phase 2: telemetry (started)**
-- FIT parsing: GPS track and camera events done (native parser, `src-tauri/src/telemetry/decode.rs`); IMU still to do
+- FIT parsing: GPS track, camera events and accelerometer done (native parser, `src-tauri/src/telemetry/decode.rs`); gyroscope and magnetometer still to do
 - Timeline: speed and altitude synchronized with the video, done
 - GPS track: done (drawn offline, no background map yet)
 - Synchronized video + map: done for the track; a background map is still to do

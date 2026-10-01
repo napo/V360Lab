@@ -148,6 +148,7 @@ mod tests {
             summary: summarize(&samples),
             samples,
             camera_events: Vec::new(),
+            accelerometer: Vec::new(),
         }
     }
 

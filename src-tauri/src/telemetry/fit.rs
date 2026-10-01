@@ -105,7 +105,7 @@ pub struct GpsFix {
 /// A FIT file shaped like a VIRB's: a `camera_event` video start at
 /// `video_start_ms` and one `gps_metadata` message per fix. Used by the mock
 /// camera so that the telemetry view can be tried without hardware.
-pub fn gps_track_file(video_start_ms: i64, fixes: &[GpsFix]) -> Vec<u8> {
+pub fn gps_track_file(video_start_ms: i64, fixes: &[GpsFix], accel: &[(i64, [f32; 3])]) -> Vec<u8> {
     const FIT_EPOCH_MS: i64 = 631_065_600_000;
     let fit_time = |unix_ms: i64| {
         (
@@ -137,6 +137,19 @@ pub fn gps_track_file(video_start_ms: i64, fixes: &[GpsFix]) -> Vec<u8> {
         data.extend_from_slice(&(((fix.altitude_m + 500.0) * 5.0).round() as u32).to_le_bytes());
         data.extend_from_slice(&((fix.speed_mps * 1000.0).round() as u32).to_le_bytes());
         data.extend_from_slice(&seconds.to_le_bytes());
+    }
+    // accelerometer_data (164): timestamp, ms, calibrated x/y/z (float32, g).
+    data.extend_from_slice(&[
+        0x42, 0, 0, 164, 0, 5, 253, 4, 0x86, 0, 2, 0x84, 5, 4, 0x88, 6, 4, 0x88, 7, 4, 0x88,
+    ]);
+    for (unix_ms, [x, y, z]) in accel {
+        let (seconds, ms) = fit_time(*unix_ms);
+        data.push(2);
+        data.extend_from_slice(&seconds.to_le_bytes());
+        data.extend_from_slice(&ms.to_le_bytes());
+        for v in [x, y, z] {
+            data.extend_from_slice(&v.to_le_bytes());
+        }
     }
     let mut bytes = vec![14u8, 0x20];
     bytes.extend_from_slice(&2132u16.to_le_bytes());
@@ -202,8 +215,12 @@ mod tests {
                 speed_mps: 4.5,
             })
             .collect();
+        let accel = [(1_720_000_000_050, [0.0f32, 0.0, 1.0])];
         let track =
-            crate::telemetry::decode::decode(&gps_track_file(1_720_000_000_000, &fixes)).unwrap();
+            crate::telemetry::decode::decode(&gps_track_file(1_720_000_000_000, &fixes, &accel))
+                .unwrap();
+        assert_eq!(track.accelerometer.len(), 1);
+        assert!((track.accelerometer[0].z - 1.0).abs() < 1e-6);
         assert_eq!(track.samples.len(), 10);
         assert_eq!(track.samples[3].timestamp_ms, 1_720_000_003_000);
         assert!((track.samples[3].latitude.unwrap() - 46.0703).abs() < 1e-6);

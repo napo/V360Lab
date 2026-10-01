@@ -160,8 +160,9 @@ async fn reads_wifi_networks() {
 async fn decodes_real_fit_telemetry() {
     let Some(camera) = camera() else { return };
     let media = camera.media_list().await.expect("mediaList");
-    let Some(video) = smallest(&media, |m| m.media_type == MediaType::Video && m.fit_url.is_some())
-    else {
+    let Some(video) = smallest(&media, |m| {
+        m.media_type == MediaType::Video && m.fit_url.is_some()
+    }) else {
         println!("no video with a FIT file on the card");
         return;
     };
@@ -177,8 +178,37 @@ async fn decodes_real_fit_telemetry() {
         track.samples.len(),
         track.camera_events.len()
     );
-    println!("first samples: {:?}", &track.samples[..track.samples.len().min(3)]);
-    println!("camera events: {:?}", &track.camera_events[..track.camera_events.len().min(5)]);
+    println!(
+        "first samples: {:?}",
+        &track.samples[..track.samples.len().min(3)]
+    );
+    println!(
+        "camera events: {:?}",
+        &track.camera_events[..track.camera_events.len().min(5)]
+    );
+    // Camera tilt calibration: mean accelerometer per axis (camera frame).
+    let accel = &track.accelerometer;
+    if accel.is_empty() {
+        println!("no accelerometer data");
+    } else {
+        let n = accel.len() as f64;
+        let mean = |f: fn(&v360lab_lib::telemetry::AccelSample) -> f64| {
+            accel.iter().map(f).sum::<f64>() / n
+        };
+        println!(
+            "accelerometer: {} readings, mean x {:.3} y {:.3} z {:.3}",
+            accel.len(),
+            mean(|a| a.x),
+            mean(|a| a.y),
+            mean(|a| a.z)
+        );
+        for a in accel.iter().step_by((accel.len() / 10).max(1)) {
+            println!(
+                "  {} ms: x {:.3} y {:.3} z {:.3}",
+                a.timestamp_ms, a.x, a.y, a.z
+            );
+        }
+    }
     let telemetry = v360lab_lib::telemetry::summary::for_video(
         track,
         video.timestamp,

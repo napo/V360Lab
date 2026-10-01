@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../../hooks/useI18n";
+import type { Mat3 } from "../../utils/level";
 import { SphereRenderer, type SphereSource } from "./SphereRenderer";
 import { DEFAULT_VIEW, deviceDirection, drag, viewFromDevice, zoom, type SphereView } from "./sphereView";
 
@@ -12,6 +13,8 @@ interface SphereViewerProps {
   onUnavailable: () => void;
   /** Changing it brings the view back to straight ahead. */
   resetKey: number;
+  /** Levelling matrix for the frame being drawn (horizon levelling). */
+  levelAt?: () => Mat3 | null;
 }
 
 type OrientationEventWithPermission = typeof DeviceOrientationEvent & {
@@ -27,13 +30,15 @@ function motionAvailable(): boolean {
  * Interactive 360° view: drag to look around, pinch or scroll to zoom, or
  * (on a phone) move the phone to look around.
  */
-export function SphereViewer({ source, onFrame, onUnavailable, resetKey }: SphereViewerProps) {
+export function SphereViewer({ source, onFrame, onUnavailable, resetKey, levelAt }: SphereViewerProps) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const view = useRef<SphereView>(DEFAULT_VIEW);
   const renderer = useRef<SphereRenderer | null>(null);
   const pending = useRef<number | null>(null);
   const newFrame = useRef(false);
+  const levelRef = useRef(levelAt);
+  levelRef.current = levelAt;
   const [motion, setMotion] = useState(false);
   // Motion control: last phone direction and the yaw it maps to.
   const device = useRef<{ heading: number; pitch: number } | null>(null);
@@ -51,7 +56,7 @@ export function SphereViewer({ source, onFrame, onUnavailable, resetKey }: Spher
         current.update(source);
         newFrame.current = false;
       }
-      current.render(view.current);
+      current.render(view.current, levelRef.current?.() ?? null);
     });
   };
 
@@ -88,6 +93,11 @@ export function SphereViewer({ source, onFrame, onUnavailable, resetKey }: Spher
     yawOffset.current = null;
     schedule.current();
   }, [resetKey]);
+
+  // Levelling turned on or off: redraw at once.
+  useEffect(() => {
+    schedule.current();
+  }, [levelAt]);
 
   // Motion control: the phone's direction drives the view.
   useEffect(() => {

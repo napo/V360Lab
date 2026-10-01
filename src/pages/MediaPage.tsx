@@ -243,9 +243,9 @@ export function MediaPage() {
       )}
       {viewing && (
         <MediaViewer item={viewing} onClose={() => setViewing(null)}>
-          {(time, seek) =>
+          {(time, seek, telemetry) =>
             viewing.mediaType === "video" && viewing.hasFit ? (
-              <TelemetryPanel item={viewing} time={time} seek={seek} />
+              <TelemetryPanel item={viewing} time={time} seek={seek} telemetry={telemetry} />
             ) : null
           }
         </MediaViewer>

@@ -111,7 +111,14 @@ impl MockVirb360Client {
                 }
             })
             .collect();
-        fit::gps_track_file(start_ms, &fixes)
+        // Camera rocking sideways by up to 10° (up axis +Z), 5 readings/s.
+        let accel: Vec<(i64, [f32; 3])> = (0..=seconds * 5)
+            .map(|i| {
+                let roll = (10f64.to_radians() * (i as f64 / 10.0).sin()) as f32;
+                (start_ms + i * 200, [roll.sin(), 0.0, roll.cos()])
+            })
+            .collect();
+        fit::gps_track_file(start_ms, &fixes, &accel)
     }
 
     fn failed(command: &str) -> CameraError {

@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 
-use super::{CameraEvent, TelemetrySample, TelemetryTrack};
+use super::{AccelSample, CameraEvent, TelemetrySample, TelemetryTrack};
 
 /// `camera_event_type` of a video start.
 const VIDEO_START: i64 = 0;
@@ -11,6 +11,8 @@ const VIDEO_START: i64 = 0;
 const START_MATCH_MS: i64 = 10_000;
 /// Points sent to the UI; longer tracks are thinned out evenly.
 pub const MAX_POINTS: usize = 5_000;
+/// Accelerometer readings sent to the UI (5 per second for over an hour).
+pub const MAX_ACCEL_POINTS: usize = 20_000;
 /// GPS noise below this is not counted as climbing.
 const ELEVATION_NOISE_M: f64 = 2.0;
 
@@ -40,6 +42,8 @@ pub struct VideoTelemetry {
     pub samples: Vec<TelemetrySample>,
     pub summary: TrackSummary,
     pub camera_events: Vec<CameraEvent>,
+    /// Accelerometer (camera tilt) during the video; may be empty.
+    pub accelerometer: Vec<AccelSample>,
 }
 
 /// Great-circle distance in metres.
@@ -96,7 +100,7 @@ pub fn summarize(samples: &[TelemetrySample]) -> TrackSummary {
 }
 
 /// Keeps at most `max` samples, evenly spread, always keeping the last.
-fn thin(samples: Vec<TelemetrySample>, max: usize) -> Vec<TelemetrySample> {
+fn thin<T: Clone>(samples: Vec<T>, max: usize) -> Vec<T> {
     if samples.len() <= max || max < 2 {
         return samples;
     }
@@ -148,7 +152,20 @@ pub fn for_video(
     } else {
         window
     };
+    // Same window for the accelerometer, with a margin for smoothing.
+    let accelerometer: Vec<AccelSample> = match duration_secs {
+        Some(duration) if duration > 0.0 => {
+            let end = video_start_ms + (duration * 1000.0).ceil() as i64;
+            track
+                .accelerometer
+                .into_iter()
+                .filter(|a| a.timestamp_ms >= video_start_ms - 2000 && a.timestamp_ms <= end + 2000)
+                .collect()
+        }
+        _ => track.accelerometer,
+    };
     VideoTelemetry {
+        accelerometer: thin(accelerometer, MAX_ACCEL_POINTS),
         video_start_ms,
         start_from_camera_event: event_start.is_some(),
         summary: summarize(&samples),
@@ -204,6 +221,7 @@ mod tests {
                 event_type: VIDEO_START,
                 file_uuid: None,
             }],
+            accelerometer: Vec::new(),
         };
         let video = for_video(track, Some(1_010), Some(20.0), MAX_POINTS);
         assert_eq!(video.video_start_ms, 1_010_400);
@@ -219,6 +237,7 @@ mod tests {
                 .map(|i| sample(i * 100, 46.0, 11.0, 200.0, 1.0))
                 .collect(),
             camera_events: Vec::new(),
+            accelerometer: Vec::new(),
         };
         let video = for_video(track, Some(999_999), Some(10.0), 100);
         assert!(!video.start_from_camera_event);

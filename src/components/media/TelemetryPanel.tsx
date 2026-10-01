@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import { useI18n } from "../../hooks/useI18n";
+import type { TelemetryState } from "../../hooks/useVideoTelemetry";
 import { cameraService } from "../../services/cameraService";
-import type { MediaItem, VideoTelemetry } from "../../types/camera";
+import type { MediaItem } from "../../types/camera";
 import type { AppError } from "../../types/errors";
 import { toAppError } from "../../utils/errors";
 import { formatDuration } from "../../utils/format";
+import { accelAt, detectAxes, tiltAngles, upInImage } from "../../utils/level";
 import { nearestPoint, projectTrack, sampleIndexAt, seriesPath } from "../../utils/telemetry";
 import { ErrorBanner } from "../ErrorBanner";
 import { FrameExtractor } from "./FrameExtractor";
@@ -19,6 +21,7 @@ interface TelemetryPanelProps {
   /** Playback position in seconds. */
   time: number;
   seek: (seconds: number) => void;
+  telemetry: TelemetryState;
 }
 
 function svgPoint(e: MouseEvent<SVGSVGElement>, width: number, height: number) {
@@ -31,10 +34,10 @@ function svgPoint(e: MouseEvent<SVGSVGElement>, width: number, height: number) {
 
 /** GPS track, speed and altitude of a video from its FIT file, following
  * the playback: the marker moves with the video, a tap seeks to that spot. */
-export function TelemetryPanel({ item, time, seek }: TelemetryPanelProps) {
+export function TelemetryPanel({ item, time, seek, telemetry: state }: TelemetryPanelProps) {
   const { t } = useI18n();
-  const [telemetry, setTelemetry] = useState<VideoTelemetry | null>(null);
-  const [error, setError] = useState<AppError | null>(null);
+  const telemetry = state.data;
+  const error = state.error;
   const [exporting, setExporting] = useState(false);
   const [exported, setExported] = useState<string | null>(null);
   const [exportError, setExportError] = useState<AppError | null>(null);
@@ -52,19 +55,7 @@ export function TelemetryPanel({ item, time, seek }: TelemetryPanelProps) {
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    setTelemetry(null);
-    setError(null);
-    cameraService
-      .telemetry(item)
-      .then((result) => !cancelled && setTelemetry(result))
-      .catch((e) => !cancelled && setError(toAppError(e)));
-    return () => {
-      cancelled = true;
-    };
-  }, [item]);
-
+  const axes = useMemo(() => detectAxes(telemetry?.accelerometer ?? []), [telemetry]);
   const points = useMemo(
     () => (telemetry ? projectTrack(telemetry.samples, MAP_W, MAP_H) : []),
     [telemetry],
@@ -89,6 +80,9 @@ export function TelemetryPanel({ item, time, seek }: TelemetryPanelProps) {
   if (telemetry.samples.length === 0) return <p className="muted small">{t("telemetry.empty")}</p>;
 
   const { samples, summary, videoStartMs } = telemetry;
+  const reading = axes ? accelAt(telemetry.accelerometer, videoStartMs + time * 1000) : null;
+  const upNow = reading && axes ? upInImage(reading, axes) : null;
+  const tilt = upNow ? tiltAngles(upNow) : null;
   const current = sampleIndexAt(samples, videoStartMs + time * 1000);
   const sampleNow = current >= 0 ? samples[current] : null;
   const marker = current >= 0 ? points[current] : null;
@@ -114,6 +108,12 @@ export function TelemetryPanel({ item, time, seek }: TelemetryPanelProps) {
             {kmh(sampleNow?.speedMps)} · {metres(sampleNow?.altitudeM)}
           </dd>
         </div>
+        {tilt && (
+          <div>
+            <dt>{t("telemetry.tilt")}</dt>
+            <dd>{t("telemetry.tiltValue", { roll: tilt.rollDeg.toFixed(0), pitch: tilt.pitchDeg.toFixed(0) })}</dd>
+          </div>
+        )}
         <div>
           <dt>{t("telemetry.distance")}</dt>
           <dd>{(summary.distanceM / 1000).toFixed(2)} km</dd>

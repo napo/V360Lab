@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "../../hooks/useI18n";
+import { useVideoTelemetry, type TelemetryState } from "../../hooks/useVideoTelemetry";
+import { detectAxes, levelAt } from "../../utils/level";
 import { cameraMediaUrl } from "../../services/mediaUrl";
 import type { MediaItem } from "../../types/camera";
 import { formatDateTime, formatDuration } from "../../utils/format";
@@ -10,8 +12,9 @@ import type { SphereSource } from "../preview/SphereRenderer";
 interface MediaViewerProps {
   item: MediaItem;
   onClose: () => void;
-  /** Extra content under the media (e.g. telemetry), given the playback time. */
-  children?: (time: number, seek: (seconds: number) => void) => ReactNode;
+  /** Extra content under the media (e.g. telemetry), given the playback
+   * time and the video's telemetry (loaded once here). */
+  children?: (time: number, seek: (seconds: number) => void, telemetry: TelemetryState) => ReactNode;
 }
 
 type Quality = "preview" | "original";
@@ -37,6 +40,10 @@ export function MediaViewer({ item, onClose, children }: MediaViewerProps) {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(item.durationSecs ?? 0);
   const listeners = useRef(new Set<() => void>());
+  const telemetry = useVideoTelemetry(video && item.hasFit ? item : null);
+  const accelerometer = useMemo(() => telemetry.data?.accelerometer ?? [], [telemetry.data]);
+  const axes = useMemo(() => detectAxes(accelerometer), [accelerometer]);
+  const [levelOn, setLevelOn] = useState(false);
 
   const spherical =
     item.lensMode === "360" && !sphereFailed && size !== null && isEquirectangular(size.width, size.height);
@@ -93,6 +100,13 @@ export function MediaViewer({ item, onClose, children }: MediaViewerProps) {
   }, []);
   const sphereUnavailable = useCallback(() => setSphereFailed(true), []);
 
+  // Horizon levelling from the accelerometer, at the frame being shown.
+  const videoStartMs = telemetry.data?.videoStartMs ?? 0;
+  const levelCallback = useMemo(() => {
+    if (!levelOn || !axes || !(element instanceof HTMLVideoElement)) return undefined;
+    return () => levelAt(accelerometer, axes, videoStartMs + element.currentTime * 1000);
+  }, [levelOn, axes, element, accelerometer, videoStartMs]);
+
   const loaded = (width: number, height: number) => {
     setSize({ width, height });
     listeners.current.forEach((listener) => listener());
@@ -141,6 +155,12 @@ export function MediaViewer({ item, onClose, children }: MediaViewerProps) {
             {t("preview.lookAhead")}
           </button>
         )}
+        {sphere && axes && (
+          <label className="checkbox" title={t("viewer.levelHint")}>
+            <input type="checkbox" checked={levelOn} onChange={(e) => setLevelOn(e.target.checked)} />
+            {t("viewer.level")}
+          </label>
+        )}
         <button type="button" className="btn btn-small" onClick={onClose}>
           {t("viewer.close")}
         </button>
@@ -186,6 +206,7 @@ export function MediaViewer({ item, onClose, children }: MediaViewerProps) {
             onFrame={subscribe}
             onUnavailable={sphereUnavailable}
             resetKey={resetKey}
+            levelAt={levelCallback}
           />
         )}
         {!size && !failed && src && <div className="preview-overlay">{t("common.loading")}</div>}
@@ -221,7 +242,7 @@ export function MediaViewer({ item, onClose, children }: MediaViewerProps) {
         </div>
       )}
       {sphere && <p className="preview-note muted small">{t("preview.sphereHint")}</p>}
-      {children?.(time, seek)}
+      {children?.(time, seek, telemetry)}
     </div>
   );
 }

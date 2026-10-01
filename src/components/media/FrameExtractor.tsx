@@ -6,6 +6,8 @@ import type { MediaItem, VideoTelemetry } from "../../types/camera";
 import type { AppError } from "../../types/errors";
 import { toAppError } from "../../utils/errors";
 import { planFrames, type FrameSpacing } from "../../utils/frames";
+import { detectAxes, levelAt } from "../../utils/level";
+import { SphereRenderer } from "../preview/SphereRenderer";
 import { ErrorBanner } from "../ErrorBanner";
 
 const JPEG_QUALITY = 0.92;
@@ -79,6 +81,7 @@ export function FrameExtractor({ item, telemetry }: FrameExtractorProps) {
   const [meters, setMeters] = useState(5);
   const [seconds, setSeconds] = useState(1);
   const [quality, setQuality] = useState<Quality>(item.url ? "original" : "preview");
+  const [level, setLevel] = useState(false);
   const [state, setState] = useState<State>({ status: "idle" });
   const [error, setError] = useState<AppError | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -96,6 +99,7 @@ export function FrameExtractor({ item, telemetry }: FrameExtractorProps) {
   const planned = planFrames(telemetry.samples, telemetry.videoStartMs, durationMs, spacing);
   const sourceUrl = quality === "preview" ? item.lowResUrl : item.url;
   const spherical = item.lensMode === "360";
+  const axes = spherical ? detectAxes(telemetry.accelerometer) : null;
 
   const extract = async () => {
     const video = videoRef.current;
@@ -109,13 +113,29 @@ export function FrameExtractor({ item, telemetry }: FrameExtractorProps) {
       await waitForMetadata(video);
       // 360° frames are written as 2:1 equirectangular images, whatever the
       // proportions of the video (the camera's preview copy is 16:9).
-      const width = video.videoWidth;
-      const height = spherical ? Math.round(width / 2) : video.videoHeight;
+      let width = video.videoWidth;
+      let height = spherical ? Math.round(width / 2) : video.videoHeight;
       const canvas = document.createElement("canvas");
+      // Levelling re-projects the sphere with WebGL; the GPU limits the size.
+      let leveler: SphereRenderer | null = null;
+      let source: HTMLVideoElement | HTMLCanvasElement = video;
+      let context: CanvasRenderingContext2D | null = null;
+      if (level && axes) {
+        leveler = new SphereRenderer(canvas, true);
+        if (width > leveler.maxTextureSize) {
+          width = leveler.maxTextureSize;
+          height = Math.round(width / 2);
+          const scaled = document.createElement("canvas");
+          scaled.width = width;
+          scaled.height = height;
+          source = scaled;
+        }
+      } else {
+        context = canvas.getContext("2d");
+        if (!context) throw new Error("canvas unavailable");
+      }
       canvas.width = width;
       canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("canvas unavailable");
 
       for (const [index, frame] of planned.entries()) {
         if (cancelled.current) {
@@ -123,7 +143,15 @@ export function FrameExtractor({ item, telemetry }: FrameExtractorProps) {
           break;
         }
         await seekTo(video, Math.min(frame.videoSeconds, Math.max(video.duration - 0.05, 0)));
-        context.drawImage(video, 0, 0, width, height);
+        if (leveler) {
+          if (source instanceof HTMLCanvasElement) source.getContext("2d")?.drawImage(video, 0, 0, width, height);
+          leveler.update(source);
+          leveler.renderEquirectangular(
+            levelAt(telemetry.accelerometer, axes, telemetry.videoStartMs + frame.videoSeconds * 1000),
+          );
+        } else {
+          context?.drawImage(video, 0, 0, width, height);
+        }
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
         if (!blob) throw new Error("the frame could not be encoded");
         const file = await cameraService.saveFrame(new Uint8Array(await blob.arrayBuffer()), {
@@ -136,6 +164,7 @@ export function FrameExtractor({ item, telemetry }: FrameExtractorProps) {
         saved.push({ file, videoSeconds: frame.videoSeconds, location: frame.location });
         setState({ status: "running", done: index + 1, total: planned.length });
       }
+      leveler?.dispose();
       if (saved.length > 0) {
         const index = await cameraService.writeFramesIndex(item, saved);
         if (!cancelled.current) setState({ status: "done", count: saved.length, index });
@@ -192,6 +221,12 @@ export function FrameExtractor({ item, telemetry }: FrameExtractorProps) {
             <option value="original">{t("frames.qualityOriginal")}</option>
             <option value="preview">{t("frames.qualityPreview")}</option>
           </select>
+        )}
+        {axes && (
+          <label className="checkbox" title={t("viewer.levelHint")}>
+            <input type="checkbox" checked={level} disabled={running} onChange={(e) => setLevel(e.target.checked)} />
+            {t("viewer.level")}
+          </label>
         )}
         {running ? (
           <button type="button" className="btn btn-small" onClick={() => (cancelled.current = true)}>

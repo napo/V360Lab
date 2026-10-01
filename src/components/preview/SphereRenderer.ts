@@ -1,3 +1,4 @@
+import type { Mat3 } from "../../utils/level";
 import type { SphereView } from "./sphereView";
 
 /** Anything showing an equirectangular image: the live preview's canvas,
@@ -18,8 +19,10 @@ void main() {
   gl_Position = vec4(position, 0.0, 1.0);
 }`;
 
-// For each pixel, the direction the virtual camera looks at, turned into
-// longitude/latitude and looked up in the equirectangular image.
+// For each pixel, the direction the virtual camera looks at (perspective
+// view, or every direction for an equirectangular output), corrected by
+// the levelling matrix, turned into longitude/latitude and looked up in
+// the equirectangular image.
 const FRAGMENT_SHADER = `
 precision highp float;
 uniform sampler2D image;
@@ -27,17 +30,27 @@ uniform float yaw;
 uniform float pitch;
 uniform float fov;
 uniform float aspect;
+uniform float equirectangular;
+uniform mat3 level;
 varying vec2 screen;
 const float PI = 3.141592653589793;
 void main() {
-  float t = tan(fov * 0.5);
-  vec3 dir = normalize(vec3(screen.x * t * aspect, screen.y * t, -1.0));
-  float cp = cos(pitch);
-  float sp = sin(pitch);
-  dir = vec3(dir.x, dir.y * cp - dir.z * sp, dir.y * sp + dir.z * cp);
-  float cy = cos(yaw);
-  float sy = sin(yaw);
-  dir = vec3(dir.x * cy + dir.z * sy, dir.y, -dir.x * sy + dir.z * cy);
+  vec3 dir;
+  if (equirectangular > 0.5) {
+    float outLon = screen.x * PI;
+    float outLat = screen.y * PI * 0.5;
+    dir = vec3(cos(outLat) * sin(outLon), sin(outLat), -cos(outLat) * cos(outLon));
+  } else {
+    float t = tan(fov * 0.5);
+    dir = normalize(vec3(screen.x * t * aspect, screen.y * t, -1.0));
+    float cp = cos(pitch);
+    float sp = sin(pitch);
+    dir = vec3(dir.x, dir.y * cp - dir.z * sp, dir.y * sp + dir.z * cp);
+    float cy = cos(yaw);
+    float sy = sin(yaw);
+    dir = vec3(dir.x * cy + dir.z * sy, dir.y, -dir.x * sy + dir.z * cy);
+  }
+  dir = level * dir;
   float lon = atan(dir.x, -dir.z);
   float lat = asin(clamp(dir.y, -1.0, 1.0));
   gl_FragColor = texture2D(image, vec2(lon / (2.0 * PI) + 0.5, 0.5 - lat / PI));
@@ -61,12 +74,22 @@ function compile(gl: WebGLRenderingContext, type: number, source: string): WebGL
  */
 export class SphereRenderer {
   private readonly gl: WebGLRenderingContext;
-  private readonly uniforms: Record<"yaw" | "pitch" | "fov" | "aspect", WebGLUniformLocation | null>;
+  private readonly uniforms: Record<
+    "yaw" | "pitch" | "fov" | "aspect" | "equirectangular" | "level",
+    WebGLUniformLocation | null
+  >;
   private readonly texture: WebGLTexture | null;
 
-  /** Throws when WebGL is unavailable. */
-  constructor(private readonly canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
+  /** Largest texture side the GPU accepts. */
+  readonly maxTextureSize: number;
+
+  /** Throws when WebGL is unavailable. `preserveDrawingBuffer` keeps the
+   * image after drawing, to read it back (frame extraction). */
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    preserveDrawingBuffer = false,
+  ) {
+    const gl = canvas.getContext("webgl", { antialias: false, alpha: false, preserveDrawingBuffer });
     if (!gl) throw new Error("WebGL is not available");
     this.gl = gl;
 
@@ -92,7 +115,10 @@ export class SphereRenderer {
       pitch: gl.getUniformLocation(program, "pitch"),
       fov: gl.getUniformLocation(program, "fov"),
       aspect: gl.getUniformLocation(program, "aspect"),
+      equirectangular: gl.getUniformLocation(program, "equirectangular"),
+      level: gl.getUniformLocation(program, "level"),
     };
+    this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
 
     // Video sizes are not powers of two: no mipmaps, clamped edges.
     this.texture = gl.createTexture();
@@ -117,9 +143,27 @@ export class SphereRenderer {
     }
   }
 
-  render(view: SphereView) {
+  /** WebGL matrices are column-major. */
+  private setLevel(level: Mat3 | null) {
+    const m = level ?? [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    this.gl.uniformMatrix3fv(this.uniforms.level, false, [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]]);
+  }
+
+  /** Draws the whole sphere as an equirectangular image of the canvas's
+   * size, levelled by `level`. */
+  renderEquirectangular(level: Mat3 | null) {
+    const gl = this.gl;
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.uniform1f(this.uniforms.equirectangular, 1);
+    this.setLevel(level);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  render(view: SphereView, level: Mat3 | null = null) {
     const gl = this.gl;
     const canvas = this.canvas;
+    gl.uniform1f(this.uniforms.equirectangular, 0);
+    this.setLevel(level);
     // Match the displayed size for a sharp image.
     const scale = window.devicePixelRatio || 1;
     const width = Math.max(1, Math.round(canvas.clientWidth * scale));

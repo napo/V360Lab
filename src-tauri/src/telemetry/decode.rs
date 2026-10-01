@@ -19,7 +19,7 @@
 use std::collections::HashMap;
 
 use super::fit::{read_header, FitError};
-use super::{CameraEvent, TelemetrySample, TelemetryTrack};
+use super::{AccelSample, CameraEvent, TelemetrySample, TelemetryTrack};
 
 /// Seconds between the Unix epoch and the FIT epoch (1989-12-31 00:00 UTC).
 pub const FIT_EPOCH_OFFSET: i64 = 631_065_600;
@@ -29,6 +29,13 @@ const MSG_RECORD: u16 = 20;
 const MSG_GPS_METADATA: u16 = 160;
 const MSG_CAMERA_EVENT: u16 = 161;
 const MSG_TIMESTAMP_CORRELATION: u16 = 162;
+const MSG_ACCELEROMETER: u16 = 164;
+const MSG_SENSOR_CALIBRATION: u16 = 167;
+/// `three_d_sensor_calibration.sensor_type` of the accelerometer.
+const SENSOR_ACCELEROMETER: i64 = 0;
+/// Accelerometer samples are averaged over this period: enough to follow
+/// how the camera is tilted, and the average cancels short accelerations.
+pub const ACCEL_BUCKET_MS: i64 = 200;
 const FIELD_TIMESTAMP: u8 = 253;
 
 #[derive(Debug, Clone)]
@@ -47,21 +54,20 @@ struct Definition {
     developer_bytes: usize,
 }
 
-/// A decoded field value; arrays keep their first element.
+/// A decoded field value.
 #[derive(Debug, Clone, PartialEq)]
 enum FieldValue {
     Int(i64),
     Float(f64),
     Text(String),
+    /// Several values (e.g. accelerometer samples); invalid ones are `None`.
+    Array(Vec<Option<f64>>),
 }
 
 impl FieldValue {
+    /// Scalar value, or the first element of an array.
     fn int(&self) -> Option<i64> {
-        match self {
-            Self::Int(v) => Some(*v),
-            Self::Float(v) => Some(*v as i64),
-            Self::Text(_) => None,
-        }
+        self.float().map(|v| v as i64)
     }
 
     fn float(&self) -> Option<f64> {
@@ -69,6 +75,15 @@ impl FieldValue {
             Self::Int(v) => Some(*v as f64),
             Self::Float(v) => Some(*v),
             Self::Text(_) => None,
+            Self::Array(values) => values.first().copied().flatten(),
+        }
+    }
+
+    /// All values: a scalar counts as a one-element array.
+    fn floats(&self) -> Vec<Option<f64>> {
+        match self {
+            Self::Array(values) => values.clone(),
+            other => vec![other.float()],
         }
     }
 }
@@ -105,7 +120,58 @@ fn read_uint(bytes: &[u8], big_endian: bool) -> u64 {
     value
 }
 
+/// Size in bytes of one element of a FIT base type (`None`: unknown type).
+fn element_size(kind: u8) -> Option<usize> {
+    match kind {
+        0 | 1 | 2 | 10 | 13 => Some(1),
+        3 | 4 | 11 => Some(2),
+        5 | 6 | 8 | 12 => Some(4),
+        9 | 14 | 15 | 16 => Some(8),
+        _ => None,
+    }
+}
+
+/// Decodes one element; `None` for FIT "invalid" values.
+fn decode_element(bytes: &[u8], kind: u8, big_endian: bool) -> Option<FieldValue> {
+    // (signed, invalid raw value)
+    let (signed, invalid): (bool, u64) = match kind {
+        0 | 2 | 13 => (false, 0xFF),
+        1 => (true, 0x7F),
+        10 | 11 | 12 | 16 => (false, 0),
+        3 => (true, 0x7FFF),
+        4 => (false, 0xFFFF),
+        5 => (true, 0x7FFF_FFFF),
+        6 => (false, 0xFFFF_FFFF),
+        14 => (true, 0x7FFF_FFFF_FFFF_FFFF),
+        15 => (false, u64::MAX),
+        8 => {
+            let raw = read_uint(bytes, big_endian) as u32;
+            let value = f32::from_bits(raw);
+            return (raw != 0xFFFF_FFFF && value.is_finite())
+                .then_some(FieldValue::Float(value.into()));
+        }
+        9 => {
+            let raw = read_uint(bytes, big_endian);
+            let value = f64::from_bits(raw);
+            return (raw != u64::MAX && value.is_finite()).then_some(FieldValue::Float(value));
+        }
+        _ => return None,
+    };
+    let raw = read_uint(bytes, big_endian);
+    if raw == invalid {
+        return None;
+    }
+    let value = if signed {
+        let shift = 64 - 8 * bytes.len() as u32;
+        ((raw << shift) as i64) >> shift
+    } else {
+        raw as i64
+    };
+    Some(FieldValue::Int(value))
+}
+
 /// Decodes one field; `None` for FIT "invalid" values and unknown types.
+/// A field longer than its base type is an array.
 fn decode_field(bytes: &[u8], base_type: u8, big_endian: bool) -> Option<FieldValue> {
     let kind = base_type & 0x1F;
     if kind == 7 {
@@ -113,44 +179,21 @@ fn decode_field(bytes: &[u8], base_type: u8, big_endian: bool) -> Option<FieldVa
         let text = String::from_utf8_lossy(&bytes[..end]).trim().to_string();
         return (!text.is_empty()).then_some(FieldValue::Text(text));
     }
-    // (element size, signed, invalid raw value)
-    let (size, signed, invalid): (usize, bool, u64) = match kind {
-        0 | 2 | 13 => (1, false, 0xFF),
-        1 => (1, true, 0x7F),
-        10 => (1, false, 0),
-        3 => (2, true, 0x7FFF),
-        4 => (2, false, 0xFFFF),
-        11 => (2, false, 0),
-        5 => (4, true, 0x7FFF_FFFF),
-        6 => (4, false, 0xFFFF_FFFF),
-        12 => (4, false, 0),
-        14 => (8, true, 0x7FFF_FFFF_FFFF_FFFF),
-        15 => (8, false, u64::MAX),
-        16 => (8, false, 0),
-        8 => {
-            let raw = read_uint(bytes.get(..4)?, big_endian) as u32;
-            let value = f32::from_bits(raw);
-            return (raw != 0xFFFF_FFFF && value.is_finite())
-                .then_some(FieldValue::Float(value.into()));
-        }
-        9 => {
-            let raw = read_uint(bytes.get(..8)?, big_endian);
-            let value = f64::from_bits(raw);
-            return (raw != u64::MAX && value.is_finite()).then_some(FieldValue::Float(value));
-        }
-        _ => return None,
-    };
-    let raw = read_uint(bytes.get(..size)?, big_endian);
-    if raw == invalid {
+    let size = element_size(kind)?;
+    if bytes.len() < size {
         return None;
     }
-    let value = if signed {
-        let shift = 64 - 8 * size as u32;
-        ((raw << shift) as i64) >> shift
-    } else {
-        raw as i64
-    };
-    Some(FieldValue::Int(value))
+    if bytes.len() >= 2 * size {
+        let values: Vec<Option<f64>> = bytes
+            .chunks_exact(size)
+            .map(|chunk| decode_element(chunk, kind, big_endian).and_then(|v| v.float()))
+            .collect();
+        return values
+            .iter()
+            .any(Option::is_some)
+            .then_some(FieldValue::Array(values));
+    }
+    decode_element(&bytes[..size], kind, big_endian)
 }
 
 /// Decodes the GPS track and camera events of a FIT file.
@@ -272,6 +315,57 @@ struct Collector {
     events: Vec<(i64, CameraEvent)>,
     /// UTC minus system time, in milliseconds.
     correlation_ms: Option<i64>,
+    /// (camera clock ms, x, y, z, already calibrated)
+    accel: Vec<(i64, [f64; 3], bool)>,
+    accel_calibration: Option<SensorCalibration>,
+}
+
+/// `three_d_sensor_calibration` (FIT SDK): calibrated value =
+/// orientation × ((raw − level_shift − offset) × factor ÷ divisor).
+#[derive(Debug, Clone)]
+struct SensorCalibration {
+    factor: f64,
+    divisor: f64,
+    level_shift: f64,
+    offset: [f64; 3],
+    /// Row-major, scaled by 65535 in the file.
+    orientation: [f64; 9],
+}
+
+impl SensorCalibration {
+    fn from_fields(fields: &Fields) -> Option<Self> {
+        let floats = |n: u8| fields.get(&n).map(FieldValue::floats).unwrap_or_default();
+        let offset = floats(4);
+        let matrix = floats(5);
+        let mut calibration = Self {
+            factor: get_f(fields, 1)?,
+            divisor: get_f(fields, 2).filter(|d| *d != 0.0).unwrap_or(1.0),
+            level_shift: get_f(fields, 3).unwrap_or(0.0),
+            offset: [0.0; 3],
+            orientation: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        };
+        for (i, v) in offset.iter().take(3).enumerate() {
+            calibration.offset[i] = v.unwrap_or(0.0);
+        }
+        if matrix.len() >= 9 && matrix.iter().take(9).all(Option::is_some) {
+            for (i, v) in matrix.iter().take(9).enumerate() {
+                calibration.orientation[i] = v.unwrap_or(0.0) / 65535.0;
+            }
+        }
+        Some(calibration)
+    }
+
+    fn apply(&self, raw: [f64; 3]) -> [f64; 3] {
+        let c: Vec<f64> = (0..3)
+            .map(|i| (raw[i] - self.level_shift - self.offset[i]) * self.factor / self.divisor)
+            .collect();
+        let m = &self.orientation;
+        [
+            m[0] * c[0] + m[1] * c[1] + m[2] * c[2],
+            m[3] * c[0] + m[4] * c[1] + m[5] * c[2],
+            m[6] * c[0] + m[7] * c[1] + m[8] * c[2],
+        ]
+    }
 }
 
 fn get_f(fields: &Fields, n: u8) -> Option<f64> {
@@ -336,6 +430,30 @@ impl Collector {
                             },
                         },
                     ));
+                }
+            }
+            MSG_SENSOR_CALIBRATION => {
+                if get_i(fields, 0) == Some(SENSOR_ACCELEROMETER) {
+                    self.accel_calibration = SensorCalibration::from_fields(fields);
+                }
+            }
+            MSG_ACCELEROMETER => {
+                let Some(t) = timestamp else { return };
+                let base = t * 1000 + get_i(fields, 0).unwrap_or(0);
+                let axis = |n: u8| fields.get(&n).map(FieldValue::floats).unwrap_or_default();
+                let offsets = axis(1);
+                // Calibrated values (in g) when the camera wrote them,
+                // otherwise raw counts to calibrate.
+                let (x, y, z, calibrated) = if fields.contains_key(&5) {
+                    (axis(5), axis(6), axis(7), true)
+                } else {
+                    (axis(2), axis(3), axis(4), false)
+                };
+                for i in 0..x.len().min(y.len()).min(z.len()) {
+                    if let (Some(x), Some(y), Some(z)) = (x[i], y[i], z[i]) {
+                        let offset = offsets.get(i).copied().flatten().unwrap_or(0.0) as i64;
+                        self.accel.push((base + offset, [x, y, z], calibrated));
+                    }
                 }
             }
             MSG_TIMESTAMP_CORRELATION => {
@@ -425,9 +543,35 @@ impl Collector {
                 ..event
             })
             .collect();
+
+        // Accelerometer: calibrate, then average per bucket.
+        let calibration = self.accel_calibration;
+        let mut buckets: std::collections::BTreeMap<i64, ([f64; 3], u32)> = Default::default();
+        for (system_ms, value, calibrated) in self.accel {
+            let value = match (&calibration, calibrated) {
+                (Some(calibration), false) => calibration.apply(value),
+                _ => value,
+            };
+            let bucket = to_unix(system_ms).div_euclid(ACCEL_BUCKET_MS);
+            let entry = buckets.entry(bucket).or_insert(([0.0; 3], 0));
+            for (sum, v) in entry.0.iter_mut().zip(value) {
+                *sum += v;
+            }
+            entry.1 += 1;
+        }
+        let accelerometer = buckets
+            .into_iter()
+            .map(|(bucket, (sum, n))| AccelSample {
+                timestamp_ms: bucket * ACCEL_BUCKET_MS + ACCEL_BUCKET_MS / 2,
+                x: sum[0] / f64::from(n),
+                y: sum[1] / f64::from(n),
+                z: sum[2] / f64::from(n),
+            })
+            .collect();
         TelemetryTrack {
             samples,
             camera_events: events,
+            accelerometer,
         }
     }
 }
@@ -572,6 +716,85 @@ pub(crate) mod tests {
         assert_eq!(track.camera_events[0].file_uuid.as_deref(), Some("VIRBabc"));
         assert_eq!(track.samples[0].timestamp_ms, 1_613_758_922_000);
         assert_eq!(track.samples[1].timestamp_ms, 1_613_758_923_000);
+    }
+
+    #[test]
+    fn decodes_and_calibrates_accelerometer_arrays() {
+        let utc = (1_613_758_902 - FIT_EPOCH_OFFSET) as u32;
+        let mut matrix = Vec::new();
+        // Swaps x and y: [[0,1,0],[1,0,0],[0,0,1]] scaled by 65535.
+        for v in [0i32, 65535, 0, 65535, 0, 0, 0, 0, 65535] {
+            matrix.extend_from_slice(&v.to_le_bytes());
+        }
+        let mut offsets = Vec::new();
+        for v in [0i32, 0, 0] {
+            offsets.extend_from_slice(&v.to_le_bytes());
+        }
+        let u16s = |values: [u16; 3]| {
+            values
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>()
+        };
+        let bytes = FitBuilder::new()
+            .define(
+                0,
+                MSG_SENSOR_CALIBRATION,
+                &[
+                    (253, 4, 0x86),
+                    (0, 1, 0x00),
+                    (1, 4, 0x86),
+                    (2, 4, 0x86),
+                    (3, 4, 0x86),
+                    (4, 12, 0x85),
+                    (5, 36, 0x85),
+                ],
+            )
+            // factor 1/1000 g per count around a level shift of 2048.
+            .data(
+                0,
+                &[
+                    &utc.to_le_bytes(),
+                    &[0],
+                    &1u32.to_le_bytes(),
+                    &1000u32.to_le_bytes(),
+                    &2048u32.to_le_bytes(),
+                    &offsets,
+                    &matrix,
+                ],
+            )
+            .define(
+                1,
+                MSG_ACCELEROMETER,
+                &[
+                    (253, 4, 0x86),
+                    (0, 2, 0x84),
+                    (1, 6, 0x84),
+                    (2, 6, 0x84),
+                    (3, 6, 0x84),
+                    (4, 6, 0x84),
+                ],
+            )
+            // Three samples 10 ms apart: x = +1 g (raw 3048), y = 0, z = 0.
+            .data(
+                1,
+                &[
+                    &utc.to_le_bytes(),
+                    &0u16.to_le_bytes(),
+                    &u16s([0, 10, 20]),
+                    &u16s([3048; 3]),
+                    &u16s([2048; 3]),
+                    &u16s([2048; 3]),
+                ],
+            )
+            .build();
+        let track = decode(&bytes).unwrap();
+        assert_eq!(track.accelerometer.len(), 1);
+        let sample = &track.accelerometer[0];
+        // The orientation matrix moved the +1 g from x to y.
+        assert!((sample.x).abs() < 1e-9);
+        assert!((sample.y - 1.0).abs() < 1e-9);
+        assert_eq!(sample.timestamp_ms, 1_613_758_902_000 + ACCEL_BUCKET_MS / 2);
     }
 
     #[test]

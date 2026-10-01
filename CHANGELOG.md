@@ -3,6 +3,11 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
+## Unreleased
+
+- **Horizon levelling (experimental)**: the FIT accelerometer is decoded (with the camera's calibration) and used to straighten 360° images: a "Level horizon" switch in the 360° video view and in the frame extraction, and the camera's roll and pitch in the telemetry panel. Which sensor axis points forward still has to be confirmed on a real camera (see the README).
+- The FIT decoder reads array fields (several samples per message).
+
 ## 0.4.0
 
 - **Play videos** from the media library, streamed from the camera through the backend with seeking: the low-resolution copy (`.GLV`) by default, the original on request. 360° videos and photos open in the interactive 360° view.

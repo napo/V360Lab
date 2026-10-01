@@ -170,4 +170,14 @@ export interface VideoTelemetry {
   startFromCameraEvent: boolean;
   samples: TelemetrySample[];
   summary: TrackSummary;
+  /** Camera tilt during the video; empty when the FIT file has none. */
+  accelerometer: AccelSample[];
+}
+
+/** Accelerometer reading (camera frame, about 1 g pointing up at rest). */
+export interface AccelSample {
+  timestampMs: number;
+  x: number;
+  y: number;
+  z: number;
 }

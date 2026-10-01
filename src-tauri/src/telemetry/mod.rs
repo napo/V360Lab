@@ -52,12 +52,27 @@ pub struct CameraEvent {
     pub file_uuid: Option<String>,
 }
 
+/// Accelerometer reading averaged over a short period, in the camera's
+/// frame (after the FIT orientation matrix). At rest it points up, with a
+/// length of about 1 g.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccelSample {
+    /// UTC time in milliseconds since the Unix epoch.
+    pub timestamp_ms: i64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TelemetryTrack {
     /// Sorted by time.
     pub samples: Vec<TelemetrySample>,
     pub camera_events: Vec<CameraEvent>,
+    /// Sorted by time; empty when the FIT file has no accelerometer data.
+    pub accelerometer: Vec<AccelSample>,
 }
 
 /// Interface for a future FIT (or other telemetry format) decoder.
