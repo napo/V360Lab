@@ -69,6 +69,17 @@ export interface MediaItem {
   lowResUrl: string | null;
   fitUrl: string | null;
   hasFit: boolean;
+  /** Marked as favourite on the camera; null when not reported. */
+  favorite: boolean | null;
+  raw: JsonValue;
+}
+
+/** A sensor paired with the camera (heart rate, cadence, …). */
+export interface SensorInfo {
+  name: string;
+  /** How it is connected, e.g. `ANT` or `LOCAL`. */
+  sensorType: string | null;
+  found: boolean | null;
   raw: JsonValue;
 }
 
@@ -127,4 +138,36 @@ export interface WifiNetworks {
 export interface WifiSwitch {
   /** False when the camera left before answering (it is most likely switching). */
   confirmed: boolean;
+}
+
+export interface TelemetrySample {
+  /** UTC milliseconds since the Unix epoch. */
+  timestampMs: number;
+  latitude: number | null;
+  longitude: number | null;
+  altitudeM: number | null;
+  speedMps: number | null;
+  headingDeg: number | null;
+  heartRate: number | null;
+}
+
+export interface TrackSummary {
+  durationSecs: number;
+  distanceM: number;
+  maxSpeedMps: number | null;
+  avgSpeedMps: number | null;
+  minAltitudeM: number | null;
+  maxAltitudeM: number | null;
+  elevationGainM: number;
+  sampleCount: number;
+  hasPosition: boolean;
+}
+
+/** The GPS track of a video, aligned with its timeline. */
+export interface VideoTelemetry {
+  /** UTC milliseconds of the first video frame. */
+  videoStartMs: number;
+  startFromCameraEvent: boolean;
+  samples: TelemetrySample[];
+  summary: TrackSummary;
 }

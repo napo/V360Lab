@@ -4,6 +4,8 @@
   "version": "0.3.0",
   "description": "Open-source toolkit for Garmin VIRB 360 video, telemetry and computer vision.",
   "license": "AGPL-3.0-only",
+  "author": "Maurizio Napolitano",
+  "repository": "github:napo/V360Lab",
   "type": "module",
   "scripts": {
     "dev": "vite",

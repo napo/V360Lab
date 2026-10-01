@@ -45,6 +45,16 @@ pub enum VirbCommand {
     /// Asks for a keyframe on the live preview stream, so that the image
     /// recovers at once after a lost packet.
     EnableIdr,
+    /// Paired sensors: `{"sensors": [{"name", "found", …}]}`.
+    Sensors,
+    Standby,
+    /// Media folders: `{"mediaDirs": [...]}`.
+    MediaDirList,
+    /// Garmin's app sends `favorite` as the string `"true"` / `"false"`.
+    SetFavorite {
+        file: String,
+        favorite: bool,
+    },
 }
 
 /// `networks` sub-commands, as sent by Garmin's VIRB app (recovered from
@@ -119,6 +129,10 @@ impl VirbCommand {
             Self::Locate => "locate",
             Self::Found => "found",
             Self::EnableIdr => "enableIDR",
+            Self::Sensors => "sensors",
+            Self::Standby => "standby",
+            Self::MediaDirList => "mediaDirList",
+            Self::SetFavorite { .. } => "setFavorite",
         }
     }
 
@@ -150,6 +164,11 @@ impl VirbCommand {
             }),
             Self::DeleteFile { files } => json!({ "command": self.name(), "files": files }),
             Self::LivePreview => json!({ "command": self.name(), "streamType": "rtp" }),
+            Self::SetFavorite { file, favorite } => json!({
+                "command": self.name(),
+                "file": file,
+                "favorite": if *favorite { "true" } else { "false" },
+            }),
             Self::Networks(network) => {
                 let mut payload =
                     json!({ "command": self.name(), "subCommand": network.sub_command() });

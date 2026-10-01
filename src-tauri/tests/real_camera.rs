@@ -152,3 +152,41 @@ async fn reads_wifi_networks() {
     println!("configured: {:?}", wifi.configured);
     println!("scanned: {:?}", wifi.scanned);
 }
+
+/// Read-only: decodes the FIT file of the smallest video with telemetry and
+/// prints what the telemetry view would show.
+#[tokio::test]
+#[ignore = "requires a VIRB 360 (set V360LAB_CAMERA)"]
+async fn decodes_real_fit_telemetry() {
+    let Some(camera) = camera() else { return };
+    let media = camera.media_list().await.expect("mediaList");
+    let Some(video) = smallest(&media, |m| m.media_type == MediaType::Video && m.fit_url.is_some())
+    else {
+        println!("no video with a FIT file on the card");
+        return;
+    };
+    let fit = camera
+        .fetch_resource(video.fit_url.as_deref().unwrap(), 64 * 1024 * 1024)
+        .await
+        .expect("FIT download");
+    let track = v360lab_lib::telemetry::decode::decode(&fit.bytes).expect("FIT decoding");
+    println!(
+        "{}: FIT {} bytes, {} samples, {} camera events",
+        video.name,
+        fit.bytes.len(),
+        track.samples.len(),
+        track.camera_events.len()
+    );
+    println!("first samples: {:?}", &track.samples[..track.samples.len().min(3)]);
+    println!("camera events: {:?}", &track.camera_events[..track.camera_events.len().min(5)]);
+    let telemetry = v360lab_lib::telemetry::summary::for_video(
+        track,
+        video.timestamp,
+        video.duration_secs,
+        v360lab_lib::telemetry::summary::MAX_POINTS,
+    );
+    println!(
+        "video start {} (from camera event: {}), summary: {:?}",
+        telemetry.video_start_ms, telemetry.start_from_camera_event, telemetry.summary
+    );
+}

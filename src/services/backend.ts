@@ -25,3 +25,16 @@ export async function call<T>(command: string, args?: Record<string, unknown>): 
     throw toAppError(error);
   }
 }
+
+/**
+ * Invokes a Rust command with a binary body (e.g. an image) and string
+ * headers, without converting the bytes to JSON.
+ */
+export async function callRaw<T>(command: string, body: Uint8Array, headers: Record<string, string>): Promise<T> {
+  if (!isTauri()) return call<T>(command);
+  try {
+    return await invoke<T>(command, body, { headers });
+  } catch (error) {
+    throw toAppError(error);
+  }
+}

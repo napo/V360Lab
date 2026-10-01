@@ -1,11 +1,12 @@
-import { useEffect, useRef } from "react";
-import { SphereRenderer } from "./SphereRenderer";
-import { DEFAULT_VIEW, drag, zoom, type SphereView } from "./sphereView";
+import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../../hooks/useI18n";
+import { SphereRenderer, type SphereSource } from "./SphereRenderer";
+import { DEFAULT_VIEW, deviceDirection, drag, viewFromDevice, zoom, type SphereView } from "./sphereView";
 
 interface SphereViewerProps {
-  /** Canvas the decoder draws each equirectangular frame on. */
-  source: HTMLCanvasElement | null;
-  /** Registers a callback run after every decoded frame. */
+  /** Element holding the equirectangular image (canvas, video or photo). */
+  source: SphereSource | null;
+  /** Registers a callback run whenever the source shows a new frame. */
   onFrame: (listener: () => void) => () => void;
   /** Called when WebGL cannot be used, so the flat image is shown instead. */
   onUnavailable: () => void;
@@ -13,13 +14,30 @@ interface SphereViewerProps {
   resetKey: number;
 }
 
-/** Interactive 360° view: drag to look around, pinch or scroll to zoom. */
+type OrientationEventWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<"granted" | "denied">;
+};
+
+/** Phones and tablets: devices with touch and an orientation sensor API. */
+function motionAvailable(): boolean {
+  return typeof DeviceOrientationEvent !== "undefined" && navigator.maxTouchPoints > 0;
+}
+
+/**
+ * Interactive 360° view: drag to look around, pinch or scroll to zoom, or
+ * (on a phone) move the phone to look around.
+ */
 export function SphereViewer({ source, onFrame, onUnavailable, resetKey }: SphereViewerProps) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const view = useRef<SphereView>(DEFAULT_VIEW);
   const renderer = useRef<SphereRenderer | null>(null);
   const pending = useRef<number | null>(null);
   const newFrame = useRef(false);
+  const [motion, setMotion] = useState(false);
+  // Motion control: last phone direction and the yaw it maps to.
+  const device = useRef<{ heading: number; pitch: number } | null>(null);
+  const yawOffset = useRef<number | null>(null);
 
   // Draws at most once per display refresh, only when something changed.
   const schedule = useRef(() => {});
@@ -67,8 +85,26 @@ export function SphereViewer({ source, onFrame, onUnavailable, resetKey }: Spher
 
   useEffect(() => {
     view.current = DEFAULT_VIEW;
+    yawOffset.current = null;
     schedule.current();
   }, [resetKey]);
+
+  // Motion control: the phone's direction drives the view.
+  useEffect(() => {
+    if (!motion) return;
+    yawOffset.current = null;
+    const listener = (e: DeviceOrientationEvent) => {
+      if (e.alpha === null || e.beta === null || e.gamma === null) return;
+      const direction = deviceDirection(e.alpha, e.beta, e.gamma);
+      device.current = direction;
+      // Start from the current view instead of jumping.
+      yawOffset.current ??= view.current.yaw + direction.heading;
+      view.current = viewFromDevice(view.current, direction.heading, direction.pitch, yawOffset.current);
+      schedule.current();
+    };
+    window.addEventListener("deviceorientation", listener);
+    return () => window.removeEventListener("deviceorientation", listener);
+  }, [motion]);
 
   // Pointer handling: one pointer drags, two pointers pinch.
   useEffect(() => {
@@ -88,7 +124,14 @@ export function SphereViewer({ source, onFrame, onUnavailable, resetKey }: Spher
       const previous = pointers.get(e.pointerId);
       if (!previous) return;
       if (pointers.size === 1) {
-        view.current = drag(view.current, e.clientX - previous.x, e.clientY - previous.y, canvas.clientHeight);
+        const dragged = drag(view.current, e.clientX - previous.x, e.clientY - previous.y, canvas.clientHeight);
+        // With motion control, dragging only turns the view sideways.
+        if (yawOffset.current !== null && device.current) {
+          yawOffset.current += dragged.yaw - view.current.yaw;
+          view.current = { ...view.current, yaw: dragged.yaw };
+        } else {
+          view.current = dragged;
+        }
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       } else if (pointers.size === 2) {
         const before = distance();
@@ -121,5 +164,34 @@ export function SphereViewer({ source, onFrame, onUnavailable, resetKey }: Spher
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="sphere-canvas" />;
+  const toggleMotion = async () => {
+    if (motion) {
+      setMotion(false);
+      device.current = null;
+      yawOffset.current = null;
+      return;
+    }
+    // iOS asks for permission; other platforms grant it directly.
+    const request = (DeviceOrientationEvent as OrientationEventWithPermission).requestPermission;
+    if (request && (await request().catch(() => "denied")) !== "granted") return;
+    setMotion(true);
+  };
+
+  return (
+    <>
+      <canvas ref={canvasRef} className="sphere-canvas" />
+      {motionAvailable() && (
+        <button
+          type="button"
+          className={`sphere-motion ${motion ? "on" : ""}`}
+          aria-pressed={motion}
+          title={t("preview.motion")}
+          aria-label={t("preview.motion")}
+          onClick={() => void toggleMotion()}
+        >
+          {t("preview.motionShort")}
+        </button>
+      )}
+    </>
+  );
 }

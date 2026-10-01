@@ -104,6 +104,20 @@ pub struct MediaItem {
     pub low_res_url: Option<String>,
     pub fit_url: Option<String>,
     pub has_fit: bool,
+    /// Marked as favourite on the camera (`fav`).
+    pub favorite: Option<bool>,
+    pub raw: Value,
+}
+
+/// A sensor paired with the camera (heart rate, cadence, …).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SensorInfo {
+    pub name: String,
+    /// How it is connected, e.g. `ANT` or `LOCAL`.
+    pub sensor_type: Option<String>,
+    /// Currently found (connected) by the camera.
+    pub found: Option<bool>,
     pub raw: Value,
 }
 
@@ -166,6 +180,24 @@ pub struct WifiNetworks {
 pub struct CommandAck {
     pub command: String,
     pub raw: Value,
+}
+
+/// Bytes `start..=end` of a resource; `end: None` means "to the end".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ByteRange {
+    pub start: u64,
+    pub end: Option<u64>,
+}
+
+/// Part of a resource, for media players that seek with Range requests.
+#[derive(Debug, Clone)]
+pub struct RangedResource {
+    pub bytes: Vec<u8>,
+    /// Offset of `bytes` in the whole resource.
+    pub start: u64,
+    /// Size of the whole resource, when known.
+    pub total: Option<u64>,
+    pub content_type: Option<String>,
 }
 
 #[derive(Debug, Clone)]

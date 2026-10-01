@@ -15,7 +15,7 @@ use crate::activity::{ActivityEvent, Step, ACTIVITY_EVENT};
 use crate::camera::address::DEFAULT_CAMERA_ADDRESS;
 use crate::camera::{
     CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList,
-    MediaItem, WifiNetworks, WifiSecurity,
+    MediaItem, SensorInfo, WifiNetworks, WifiSecurity,
 };
 use crate::discovery::{self, DiscoveredCamera};
 use crate::downloads::{self, DownloadOptions, DownloadProgress, DownloadReport};
@@ -24,8 +24,9 @@ use crate::library::{self, DeleteReport};
 use crate::preview::{self, PreviewFailure};
 use crate::settings::Settings;
 use crate::state::AppState;
+use crate::telemetry::{self, export::TrackFormat, summary::VideoTelemetry};
 use crate::virb::{GarminVirb360Client, MockVirb360Client};
-use crate::wifi;
+use crate::{geotag, wifi};
 
 type CommandResult<T> = Result<T, AppError>;
 
@@ -542,4 +543,302 @@ pub async fn get_supported_commands(
 pub async fn locate_camera(state: State<'_, AppState>, on: bool) -> CommandResult<CommandAck> {
     let result = async { Ok(state.camera().await?.locate(on).await?) }.await;
     logged("locate_camera", result)
+}
+
+/// Sensors paired with the camera.
+#[tauri::command]
+pub async fn get_sensors(state: State<'_, AppState>) -> CommandResult<Vec<SensorInfo>> {
+    let result = async { Ok(state.camera().await?.sensors().await?) }.await;
+    logged("get_sensors", result)
+}
+
+/// Media folders on the camera's card.
+#[tauri::command]
+pub async fn get_media_directories(state: State<'_, AppState>) -> CommandResult<Vec<String>> {
+    let result = async { Ok(state.camera().await?.media_directories().await?) }.await;
+    logged("get_media_directories", result)
+}
+
+/// Puts the camera in standby and closes the connection: the camera no
+/// longer answers until it is woken up on the camera itself.
+#[tauri::command]
+pub async fn standby_camera(state: State<'_, AppState>) -> CommandResult<CommandAck> {
+    let result = async {
+        let camera = state.camera().await?;
+        log::info!("Putting the camera in standby");
+        state.preview.stop().await;
+        let ack = camera.standby().await?;
+        state.set_camera(None).await;
+        Ok(ack)
+    }
+    .await;
+    logged("standby_camera", result)
+}
+
+/// Marks a media item as favourite (or not) and returns it as the camera
+/// now lists it.
+#[tauri::command]
+pub async fn set_media_favorite(
+    state: State<'_, AppState>,
+    item: MediaItem,
+    favorite: bool,
+) -> CommandResult<MediaItem> {
+    let result = async {
+        let camera = state.camera().await?;
+        let url = item
+            .url
+            .as_deref()
+            .ok_or_else(|| AppError::MissingResource {
+                name: item.name.clone(),
+                resource: crate::error::Resource::DownloadUrl,
+            })?;
+        camera.set_favorite(url, favorite).await?;
+        let updated = camera
+            .media_list()
+            .await?
+            .into_iter()
+            .find(|m| m.id == item.id)
+            .ok_or_else(|| CameraError::CommandFailed {
+                command: "setFavorite".into(),
+                response: format!("\"{}\" is no longer in the media list", item.name),
+            })?;
+        if updated.favorite != Some(favorite) {
+            return Err(CameraError::CommandFailed {
+                command: "setFavorite".into(),
+                response: format!("\"{}\" is still {:?}", item.name, updated.favorite),
+            }
+            .into());
+        }
+        Ok(updated)
+    }
+    .await;
+    logged("set_media_favorite", result)
+}
+
+/// Largest FIT file read into memory (an hour of VIRB telemetry is a few MB).
+const MAX_FIT_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Downloads and decodes the FIT file of a video.
+async fn video_telemetry(
+    state: &AppState,
+    item: &MediaItem,
+    max_points: usize,
+) -> CommandResult<VideoTelemetry> {
+    let url = item
+        .fit_url
+        .as_deref()
+        .ok_or_else(|| AppError::MissingResource {
+            name: item.name.clone(),
+            resource: crate::error::Resource::FitFile,
+        })?;
+    let fit = state
+        .camera()
+        .await?
+        .fetch_resource(url, MAX_FIT_BYTES)
+        .await?;
+    let track = telemetry::decode::decode(&fit.bytes).map_err(|e| AppError::Telemetry {
+        detail: e.to_string(),
+    })?;
+    log::info!(
+        "Telemetry of {}: {} samples, {} camera events",
+        item.name,
+        track.samples.len(),
+        track.camera_events.len()
+    );
+    Ok(telemetry::summary::for_video(
+        track,
+        item.timestamp,
+        item.duration_secs,
+        max_points,
+    ))
+}
+
+/// The GPS track recorded with a video, aligned with its timeline.
+#[tauri::command]
+pub async fn get_media_telemetry(
+    state: State<'_, AppState>,
+    item: MediaItem,
+) -> CommandResult<VideoTelemetry> {
+    let result = video_telemetry(&state, &item, telemetry::summary::MAX_POINTS).await;
+    logged("get_media_telemetry", result)
+}
+
+/// Writes the full-resolution GPS track of a video as GPX or GeoJSON next
+/// to its downloads, and returns the file path.
+#[tauri::command]
+pub async fn export_track(
+    state: State<'_, AppState>,
+    item: MediaItem,
+    format: TrackFormat,
+) -> CommandResult<String> {
+    let result = async {
+        let telemetry = video_telemetry(&state, &item, usize::MAX).await?;
+        if !telemetry.summary.has_position {
+            return Err(AppError::Telemetry {
+                detail: "the FIT file has no GPS positions for this video".into(),
+            });
+        }
+        let content = match format {
+            TrackFormat::Gpx => telemetry::export::to_gpx(&telemetry, &item.name),
+            TrackFormat::Geojson => {
+                serde_json::to_string_pretty(&telemetry::export::to_geojson(&telemetry, &item.name))
+                    .unwrap_or_default()
+            }
+        };
+        let directory = downloads::item_directory(&state.download_root(), &item);
+        tokio::fs::create_dir_all(&directory)
+            .await
+            .map_err(AppError::fs(&directory))?;
+        let stem = directory
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "track".into());
+        let path = directory.join(format!("{stem}.{}", format.extension()));
+        tokio::fs::write(&path, content)
+            .await
+            .map_err(AppError::fs(&path))?;
+        log::info!("Track of {} exported to {}", item.name, path.display());
+        Ok(path.display().to_string())
+    }
+    .await;
+    logged("export_track", result)
+}
+
+/// Header of [`save_frame`]: which video the frame comes from and where it
+/// was taken (percent-encoded JSON, since headers are ASCII).
+const FRAME_HEADER: &str = "x-v360lab-frame";
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FrameRequest {
+    /// Media name and date, to find the video's download folder.
+    name: String,
+    timestamp: Option<i64>,
+    index: u32,
+    location: geotag::FrameLocation,
+    /// Equirectangular 360° frame: adds the GPano panorama tags.
+    spherical: bool,
+    camera_model: Option<String>,
+}
+
+fn frames_directory(state: &AppState, name: &str, timestamp: Option<i64>) -> std::path::PathBuf {
+    downloads::media_directory(&state.download_root(), name, timestamp).join("frames")
+}
+
+/// Saves one extracted video frame (the request body is the JPEG image)
+/// with EXIF GPS and, for 360° frames, GPano tags. Returns the file path.
+#[tauri::command]
+pub async fn save_frame(
+    state: State<'_, AppState>,
+    request: tauri::ipc::Request<'_>,
+) -> CommandResult<String> {
+    let result = async {
+        let invalid = |detail: &str| AppError::Telemetry {
+            detail: format!("invalid frame: {detail}"),
+        };
+        let tauri::ipc::InvokeBody::Raw(jpeg) = request.body() else {
+            return Err(invalid("the body is not an image"));
+        };
+        let header = request
+            .headers()
+            .get(FRAME_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| invalid("missing frame description"))?;
+        let header = percent_encoding::percent_decode_str(header)
+            .decode_utf8()
+            .map_err(|_| invalid("frame description is not UTF-8"))?;
+        let frame: FrameRequest =
+            serde_json::from_str(&header).map_err(|e| invalid(&e.to_string()))?;
+        let tagged = geotag::tag_jpeg(
+            jpeg,
+            &frame.location,
+            frame.camera_model.as_deref().unwrap_or("VIRB 360"),
+            frame.spherical,
+        )
+        .map_err(|e| invalid(&e.to_string()))?;
+
+        let directory = frames_directory(&state, &frame.name, frame.timestamp);
+        tokio::fs::create_dir_all(&directory)
+            .await
+            .map_err(AppError::fs(&directory))?;
+        let stem = downloads::media_directory(std::path::Path::new(""), &frame.name, None)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "frame".into());
+        let path = directory.join(format!("{stem}_{:05}.jpg", frame.index));
+        tokio::fs::write(&path, tagged)
+            .await
+            .map_err(AppError::fs(&path))?;
+        Ok(path.display().to_string())
+    }
+    .await;
+    logged("save_frame", result)
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameIndexEntry {
+    file: String,
+    /// Position in the video, in seconds.
+    video_seconds: f64,
+    location: geotag::FrameLocation,
+}
+
+/// Writes `frames.geojson` next to the extracted frames: one point per
+/// frame with its file name, time and position in the video.
+#[tauri::command]
+pub async fn write_frames_index(
+    state: State<'_, AppState>,
+    item: MediaItem,
+    frames: Vec<FrameIndexEntry>,
+) -> CommandResult<String> {
+    let result = async {
+        let features: Vec<serde_json::Value> = frames
+            .iter()
+            .map(|frame| {
+                let l = &frame.location;
+                let mut coordinates = vec![l.longitude, l.latitude];
+                coordinates.extend(l.altitude_m);
+                serde_json::json!({
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": coordinates },
+                    "properties": {
+                        "file": std::path::Path::new(&frame.file)
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned()),
+                        "time": chrono::DateTime::<chrono::Utc>::from_timestamp_millis(l.unix_ms)
+                            .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
+                        "videoSeconds": frame.video_seconds,
+                        "headingDeg": l.heading_deg,
+                        "speedMps": l.speed_mps,
+                    }
+                })
+            })
+            .collect();
+        let geojson = serde_json::json!({
+            "type": "FeatureCollection",
+            "features": features,
+            "properties": { "video": item.name, "creator": "V360Lab" },
+        });
+        let directory = frames_directory(&state, &item.name, item.timestamp);
+        tokio::fs::create_dir_all(&directory)
+            .await
+            .map_err(AppError::fs(&directory))?;
+        let path = directory.join("frames.geojson");
+        tokio::fs::write(
+            &path,
+            serde_json::to_string_pretty(&geojson).unwrap_or_default(),
+        )
+        .await
+        .map_err(AppError::fs(&path))?;
+        log::info!(
+            "{} frames of {} indexed in {}",
+            frames.len(),
+            item.name,
+            path.display()
+        );
+        Ok(path.display().to_string())
+    }
+    .await;
+    logged("write_frames_index", result)
 }

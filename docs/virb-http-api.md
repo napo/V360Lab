@@ -39,7 +39,7 @@ Confidence markers:
 | `status` | `{"command":"status"}` | Polled. Keys read: `totalSpace`, `availableSpace`, `recordingTime`, `photoCount`, `batteryChargingState`, `batteryLevel`, `recordingTimeRemaining`, `photosRemaining`, `apiMin`, `apiMax`, `wifiSignalStrength`, `wifiMode`, `antSensor`, `btSensor`, `btHeadset`, `wifiSensor`, `lastMediaEventTime`, `gpsLatitude`, `gpsLongitude`, `gpsAccuracy`, `gpsLastTime`. verified |
 | `features` | `{"command":"features"}` | Polled. verified |
 | `updateFeature` | `{"command":"updateFeature","feature":<string>,"value":<string>}` | Boolean features are sent as `"0"` / `"1"` strings. verified |
-| `sensors` | `{"command":"sensors"}` | Response: `sensors[]`, each with `name`, `found`, a type (`LOCAL` or `ANT`) and units (`RPM`, `BPM`, `Meters/Second`, `Degrees/Second`, ...). verified |
+| `sensors` | `{"command":"sensors"}` | Response: `sensors[]`, each with `name`, `found`, a type (`LOCAL` or `ANT`) and units (`RPM`, `BPM`, `Meters/Second`, `Degrees/Second`, ...). The keys besides `name` and `found` are C++ static strings, not recovered. verified |
 | `commandList` | `{"command":"commandList"}` | Response: `commandList[]` of `{"command": <name>}`. The app uses it to check which commands the firmware supports. verified |
 
 ### Capture
@@ -156,8 +156,10 @@ updates.
 - `livePreview`: V360Lab sends `streamType: "rtp"` (required on firmware
   4.20) but not `maxResolutionVertical` and `liveStreamActive`.
 - `networks`: implemented as described above, not yet tested on a camera.
-- `commandList`, `locate`/`found` and `enableIDR` (sent while the preview
-  waits for a keyframe, at most once per second): implemented, not yet
-  tested on a camera.
-- Not implemented yet: `sensors`, `mediaDirList`, `setFavorite`, `standby`,
-  `restoreDefaults`, error log, `sw_update`, `exportService*`, Wake-on-WLAN.
+- `commandList`, `locate`/`found`, `enableIDR` (sent while the preview
+  waits for a keyframe, at most once per second), `sensors`, `standby`,
+  `mediaDirList` and `setFavorite` (`file` = the media URL, as for
+  `deleteFile`; the result is checked against the media list):
+  implemented, not yet tested on a camera.
+- Not implemented yet: `restoreDefaults`, error log, `sw_update`,
+  `exportService*`, Wake-on-WLAN.

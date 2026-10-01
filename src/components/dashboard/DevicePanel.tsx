@@ -8,11 +8,12 @@ import { KeyValueList } from "../KeyValueList";
 import { Panel } from "../Panel";
 import { ErrorBanner } from "../ErrorBanner";
 import { cameraService } from "../../services/cameraService";
+import { settingsService } from "../../services/settingsService";
 import type { AppError } from "../../types/errors";
 import { toAppError } from "../../utils/errors";
 
 export function DevicePanel() {
-  const { connection, deviceInfo, supportedCommands, supports } = useCamera();
+  const { connection, deviceInfo, supportedCommands, supports, disconnect } = useCamera();
   const { debugMode } = useSettings();
   const { t } = useI18n();
   const address = connection.status === "connected" ? connection.address : null;
@@ -29,6 +30,25 @@ export function DevicePanel() {
     },
     [],
   );
+
+  // The camera stops answering in standby: the connection is closed.
+  const standby = async () => {
+    const confirmed = await settingsService.confirm(t("device.standbyConfirm"), {
+      title: t("device.standby"),
+      okLabel: t("device.standby"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await cameraService.standby();
+      await disconnect();
+    } catch (e) {
+      setError(toAppError(e));
+      setBusy(false);
+    }
+  };
 
   // `locate` makes the camera beep and blink until `found`.
   const toggleLocate = async () => {
@@ -56,17 +76,24 @@ export function DevicePanel() {
           { label: t("device.connection"), value: <ConnectionBadge connection={connection} /> },
         ]}
       />
-      {address && supports("locate") && (
+      {address && (supports("locate") || supports("standby")) && (
         <div className="form-actions">
-          <button
-            type="button"
-            className={`btn ${locating ? "btn-primary" : ""}`}
-            disabled={busy}
-            onClick={() => void toggleLocate()}
-          >
-            {locating ? t("device.locateStop") : t("device.locateStart")}
-          </button>
-          <span className="muted small">{t("device.locateHint")}</span>
+          {supports("locate") && (
+            <button
+              type="button"
+              className={`btn ${locating ? "btn-primary" : ""}`}
+              disabled={busy}
+              onClick={() => void toggleLocate()}
+            >
+              {locating ? t("device.locateStop") : t("device.locateStart")}
+            </button>
+          )}
+          {supports("standby") && (
+            <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void standby()}>
+              {t("device.standby")}
+            </button>
+          )}
+          {locating && <span className="muted small">{t("device.locateHint")}</span>}
         </div>
       )}
       {error && <ErrorBanner error={error} />}

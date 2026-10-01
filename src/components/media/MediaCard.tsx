@@ -19,10 +19,24 @@ interface MediaCardProps {
   onDelete: (item: MediaItem) => void;
   /** Deleting is disabled while recording or another deletion runs. */
   deleteDisabled: boolean;
+  onToggleFavorite?: (item: MediaItem) => void;
+  favoriteBusy: boolean;
+  /** Opens the photo or plays the video. */
+  onOpen: (item: MediaItem) => void;
 }
 
 /** One media file as a card: thumbnail, key facts and actions. */
-export function MediaCard({ item, options, selected, onToggleSelected, onDelete, deleteDisabled }: MediaCardProps) {
+export function MediaCard({
+  item,
+  options,
+  selected,
+  onToggleSelected,
+  onDelete,
+  deleteDisabled,
+  onToggleFavorite,
+  favoriteBusy,
+  onOpen,
+}: MediaCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { downloads, start } = useDownloads();
   const { debugMode } = useSettings();
@@ -34,7 +48,16 @@ export function MediaCard({ item, options, selected, onToggleSelected, onDelete,
   return (
     <article className={`media-card ${selected ? "selected" : ""}`}>
       <div className="media-thumb">
-        <Thumbnail url={item.thumbnailUrl} mediaType={item.mediaType} />
+        <button
+          type="button"
+          className="media-open"
+          disabled={!item.url}
+          aria-label={item.mediaType === "video" ? t("viewer.playVideo") : t("viewer.openPhoto")}
+          onClick={() => onOpen(item)}
+        >
+          <Thumbnail url={item.thumbnailUrl} mediaType={item.mediaType} />
+          {item.mediaType === "video" && item.url && <span className="media-play" aria-hidden>▶</span>}
+        </button>
         <label className="media-select">
           <input
             type="checkbox"
@@ -43,6 +66,19 @@ export function MediaCard({ item, options, selected, onToggleSelected, onDelete,
             onChange={() => onToggleSelected(item)}
           />
         </label>
+        {onToggleFavorite && item.favorite !== null && (
+          <button
+            type="button"
+            className={`media-favorite ${item.favorite ? "on" : ""}`}
+            aria-pressed={item.favorite}
+            aria-label={item.favorite ? t("media.unfavorite") : t("media.favorite")}
+            title={item.favorite ? t("media.unfavorite") : t("media.favorite")}
+            disabled={favoriteBusy}
+            onClick={() => onToggleFavorite(item)}
+          >
+            {item.favorite ? "★" : "☆"}
+          </button>
+        )}
         <div className="media-badges">
           {item.mediaType === "video" && item.durationSecs != null && (
             <span className="badge-pill">{formatDuration(item.durationSecs)}</span>

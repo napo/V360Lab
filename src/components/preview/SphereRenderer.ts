@@ -1,5 +1,15 @@
 import type { SphereView } from "./sphereView";
 
+/** Anything showing an equirectangular image: the live preview's canvas,
+ * a recorded video or a photo. */
+export type SphereSource = HTMLCanvasElement | HTMLVideoElement | HTMLImageElement;
+
+export function sourceSize(source: SphereSource): { width: number; height: number } {
+  if (source instanceof HTMLVideoElement) return { width: source.videoWidth, height: source.videoHeight };
+  if (source instanceof HTMLImageElement) return { width: source.naturalWidth, height: source.naturalHeight };
+  return { width: source.width, height: source.height };
+}
+
 const VERTEX_SHADER = `
 attribute vec2 position;
 varying vec2 screen;
@@ -93,12 +103,18 @@ export class SphereRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   }
 
-  /** Uploads the latest decoded frame. */
-  update(source: HTMLCanvasElement) {
-    if (source.width === 0 || source.height === 0) return;
+  /** Uploads the current frame of the source. */
+  update(source: SphereSource) {
+    const { width, height } = sourceSize(source);
+    if (width === 0 || height === 0) return;
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source);
+    try {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source);
+    } catch (e) {
+      // e.g. a cross-origin image the webview refuses to use as a texture.
+      console.warn("360° view: cannot read the image", e);
+    }
   }
 
   render(view: SphereView) {

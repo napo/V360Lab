@@ -7,6 +7,8 @@ export interface AsyncResource<T> {
   error: AppError | null;
   loading: boolean;
   reload: () => Promise<void>;
+  /** Replaces the data locally (e.g. with an item the backend returned). */
+  update: (updater: (data: T | null) => T | null) => void;
 }
 
 /**
@@ -42,5 +44,5 @@ export function useAsyncResource<T>(loader: () => Promise<T>, enabled = true): A
     if (enabled) void reload();
   }, [enabled, reload]);
 
-  return { data, error, loading, reload };
+  return { data, error, loading, reload, update: setData };
 }

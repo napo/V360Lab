@@ -2,7 +2,8 @@
 name = "v360lab"
 version = "0.3.0"
 description = "Open-source toolkit for Garmin VIRB 360 video, telemetry and computer vision."
-authors = ["V360Lab contributors"]
+authors = ["Maurizio Napolitano"]
+repository = "https://github.com/napo/V360Lab"
 license = "AGPL-3.0-only"
 edition = "2021"
 rust-version = "1.82"
@@ -32,6 +33,7 @@ url = "2"
 base64 = "0.22"
 if-addrs = "0.15.0"
 socket2 = "0.6"
+percent-encoding = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

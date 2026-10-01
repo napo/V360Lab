@@ -8,12 +8,15 @@ import type {
   DiscoveredCamera,
   FeatureList,
   MediaItem,
+  SensorInfo,
+  VideoTelemetry,
   WifiNetworks,
   WifiSecurity,
   WifiSwitch,
 } from "../types/camera";
 import type { DeleteReport } from "../types/downloads";
-import { call } from "./backend";
+import type { FrameLocation } from "../utils/frames";
+import { call, callRaw } from "./backend";
 
 /**
  * Wraps a read-only request so concurrent callers share one in-flight call.
@@ -48,6 +51,26 @@ export const cameraService = {
   thumbnail: (url: string) => call<string>("fetch_thumbnail", { url }),
   supportedCommands: shared(() => call<string[] | null>("get_supported_commands")),
   locate: (on: boolean) => call<CommandAck>("locate_camera", { on }),
+  sensors: () => call<SensorInfo[]>("get_sensors"),
+  mediaDirectories: () => call<string[]>("get_media_directories"),
+  standby: () => call<CommandAck>("standby_camera"),
+  telemetry: (item: MediaItem) => call<VideoTelemetry>("get_media_telemetry", { item }),
+  /** Writes the GPS track next to the downloads; resolves to the file path. */
+  exportTrack: (item: MediaItem, format: "gpx" | "geojson") => call<string>("export_track", { item, format }),
+  /** Saves an extracted video frame (JPEG) with GPS tags; resolves to its path. */
+  saveFrame: (
+    jpeg: Uint8Array,
+    frame: { name: string; timestamp: number | null; index: number; location: FrameLocation; spherical: boolean },
+  ) =>
+    callRaw<string>("save_frame", jpeg, {
+      "x-v360lab-frame": encodeURIComponent(JSON.stringify(frame)),
+    }),
+  writeFramesIndex: (
+    item: MediaItem,
+    frames: Array<{ file: string; videoSeconds: number; location: FrameLocation }>,
+  ) => call<string>("write_frames_index", { item, frames }),
+  setFavorite: (item: MediaItem, favorite: boolean) =>
+    call<MediaItem>("set_media_favorite", { item, favorite }),
   wifiNetworks: shared(() => call<WifiNetworks>("get_wifi_networks")),
   addWifiNetwork: (ssid: string, security: WifiSecurity, password: string) =>
     call<CommandAck>("add_wifi_network", { ssid, security, password }),

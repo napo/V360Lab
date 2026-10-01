@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DevicePanel } from "../components/dashboard/DevicePanel";
+import { SensorsPanel } from "../components/dashboard/SensorsPanel";
 import { StatusPanel } from "../components/dashboard/StatusPanel";
 import type { Navigate } from "../components/navigation";
 import { useCamera } from "../hooks/useCamera";
@@ -74,6 +75,7 @@ export function AdvancedPage({ navigate }: { navigate: Navigate }) {
           <div className="grid grid-dashboard">
             <StatusPanel />
             <DevicePanel />
+            <SensorsPanel />
           </div>
         ) : tab === "wifi" ? (
           <WifiPage onSwitched={(ssid, result) => setSwitched({ ssid, result })} />

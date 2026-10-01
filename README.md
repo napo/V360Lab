@@ -35,10 +35,18 @@ V360Lab is a desktop toolkit that:
   - photo: single, burst or interval (time-lapse) capture with interval and type, plus self-timer;
   - start/stop recording, take a photo, start/stop interval capture. Controls that conflict with the current camera state are disabled.
 - Camera settings editor: every choice or on/off feature reported by the camera can be changed, with readable labels. A raw JSON view is available.
-- Media library: file name, type, date/time, duration, size, lens mode, thumbnail, preview URLs, FIT availability
+- Live preview from the camera (RTSP/H.264 decoded with WebCodecs). With the 360° lens it is shown as an interactive 360° view: drag to look around, pinch or scroll to zoom. While the image waits for a keyframe the app asks the camera for one (`enableIDR`).
+- Media library: file name, type, date/time, duration, size, lens mode, thumbnail, preview URLs, FIT availability, favourites (star, `setFavorite`, verified against the media list)
+- Play videos and open photos from the library, streamed from the camera through the backend (`virb://` protocol with Range support, so videos can be seeked). Videos start from the camera's low-resolution copy (`.GLV`), with the original one tap away; 360° videos and photos open in the interactive 360° view.
+- Telemetry under the video: the FIT file is decoded (`gps_metadata`, `record`, `camera_event`, `timestamp_correlation`), aligned with the video (on the camera's "video start" event when present, otherwise on the media date) and shown as a GPS track, speed and altitude charts and summary figures. The marker follows playback; tapping the track or the chart seeks the video. The track can be exported as GPX or GeoJSON (with each point's UTC time and position in the video).
+- Georeferenced frames: extract frames of a video every N metres travelled or every N seconds. Each frame is a JPEG with EXIF GPS (position, altitude, UTC time, speed, direction of travel); 360° frames are 2:1 equirectangular with XMP GPano panorama tags, ready for Mapillary, Panoramax or photogrammetry. A `frames.geojson` index lists them. Frames are decoded by the webview from the camera's video, so the original 5.7K file needs a device able to decode it; the preview copy always works but is low resolution.
 - Download media, FIT telemetry and thumbnails, plus a `metadata.json` holding the original camera metadata. Items can be downloaded one by one or as a selection.
 - Delete files on the camera, one by one or as a selection, after a native confirmation dialog. Each deletion is verified against the media list.
 - Camera Wi-Fi (Advanced → Wi-Fi): show the camera's own network, the networks it has saved and the ones it can see; save a new network (WPA2, WPA, WEP or open), remove one, or make the camera join a saved network. After switching, this device must join the same network and search for the camera again. **Not yet tested on a real camera** (see the API notes).
+- Find the camera (Advanced → Device): it beeps and blinks until you stop it (`locate` / `found`). Standby from the same panel.
+- Sensors paired with the camera (`sensors`) and media folders on the card (`mediaDirList`) under Advanced → Device.
+- On phones, the 360° view can follow the phone's movement (gyroscope).
+- The commands the firmware supports (`commandList`) are shown under Advanced → Device; features the camera does not list are hidden.
 - Mock camera mode for development without hardware
 - Error messages written for the user, with technical details available in debug mode
 - User interface in English and Italian (follows the system language by default; switchable from the sidebar or Settings)
@@ -260,12 +268,12 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 ## Known limitations
 
 - Tested with one VIRB 360 (firmware 4.20), including small media and FIT downloads; multi-GB downloads have not been tried yet.
-- Settings whose value is free text (`friendlyName`, `wifiTimeout`) and actions (`locateCamera`, `previewWhileRecording`) cannot be changed yet.
+- Settings whose value is free text (`friendlyName`, `wifiTimeout`) and actions (`locateCamera`, `previewWhileRecording`) cannot be changed from the settings editor. The camera can be made to beep from Advanced → Device instead.
 - Settings are locked while recording.
 - FIT files of deleted videos remain on the camera (`GMetrix/`). Firmware 4.20 refuses to delete them over Wi-Fi; remove them from the SD card or USB storage.
 - On firmware 4.20 the dashboard mode comes from the `shootingMode` feature. It is read after connecting and on manual refresh, not on every status poll.
-- FIT files are downloaded and their header is validated, but not decoded.
-- No live preview (RTSP) and no deletion of files on the camera.
+- FIT decoding covers the GPS track and camera events; IMU data (accelerometer, gyroscope, magnetometer) is not decoded yet. The track is drawn without a background map, so that no data leaves the device.
+- Video playback depends on the system's codecs: on Linux, H.264 needs the GStreamer `gst-libav` plugin. The original 360° files (up to 5.7K) may be too heavy for phones; the low-resolution copy is the default.
 - The capture date folder uses UTC.
 - Only one camera can be connected at a time.
 - On Android, downloads are saved in the app's private storage for now (not in the public Downloads folder).
@@ -277,26 +285,27 @@ Parsing is deliberately tolerant. Every field is optional, numbers may arrive as
 2. Photo interval capture end to end (start, status while running, stop) and switching between video and photo mode.
 3. How raw (unstitched) dual-lens recordings and time-lapse groups (`groupId`) appear in the media list.
 4. Whether `snapPicture` is accepted while recording or in video mode (the UI currently disables it while recording).
+5. The features added in 0.3.0 and later, written from Garmin's app but not yet run against the camera: Wi-Fi management, `commandList`, `locate`/`found`, `enableIDR`, `sensors`, `standby`, `mediaDirList`, `setFavorite`, the orientation of the 360° view, playback of `.GLV` files, and the FIT decoding of real VIRB files.
 
 Please report findings (with the raw JSON from debug mode) in an issue.
 
 ## Roadmap
 
-**Phase 1: camera toolkit (current)**
+**Phase 1: camera toolkit (done)**
 - VIRB connection
 - Status
 - Camera controls
 - Media browser
 - Media/FIT download
 
-**Phase 2: telemetry**
-- FIT parsing (Garmin FIT SDK or a compatible parser; see `src-tauri/src/telemetry/mod.rs`)
-- Timeline
-- GPS track
-- Synchronized video + map
+**Phase 2: telemetry (started)**
+- FIT parsing: GPS track and camera events done (native parser, `src-tauri/src/telemetry/decode.rs`); IMU still to do
+- Timeline: speed and altitude synchronized with the video, done
+- GPS track: done (drawn offline, no background map yet)
+- Synchronized video + map: done for the track; a background map is still to do
 
-**Phase 3: computer vision**
-- Frame extraction
+**Phase 3: computer vision (started)**
+- Frame extraction: done, georeferenced (EXIF GPS, GPano for 360°), every N metres or seconds
 - OpenCV processing
 - Object detection
 - YOLO
@@ -316,7 +325,9 @@ Please report findings (with the raw JSON from debug mode) in an issue.
 
 ## License
 
-V360Lab is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+Copyright © 2026 Maurizio Napolitano.
+
+V360Lab is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). The complete source code is at <https://github.com/napo/V360Lab>; the app shows this address under Advanced → About, and the website links to it.
 
 ## Disclaimer
 

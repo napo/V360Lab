@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use crate::camera::{
     CameraError, CameraFeature, CameraStatus, CommandAck, DeviceInfo, FeatureList, MediaItem,
-    MediaType, RecordingState, WifiNetwork, WifiSecurity,
+    MediaType, RecordingState, SensorInfo, WifiNetwork, WifiSecurity,
 };
 
 use super::errors::snippet;
@@ -145,6 +145,8 @@ struct VirbMediaItem {
         deserialize_with = "flex::opt_string"
     )]
     fit_url: Option<String>,
+    #[serde(default, alias = "favorite", deserialize_with = "flex::opt_bool")]
+    fav: Option<bool>,
 }
 
 fn malformed(command: &str, detail: impl Into<String>, response: &Value) -> CameraError {
@@ -343,6 +345,7 @@ pub fn parse_media_item(item: &Value, index: usize) -> Option<MediaItem> {
         low_res_url: parsed.low_res_video_path,
         has_fit: parsed.fit_url.is_some(),
         fit_url: parsed.fit_url,
+        favorite: parsed.fav,
         name,
         raw: item.clone(),
     })
@@ -511,6 +514,61 @@ pub fn parse_command_list(response: &Value) -> Result<Vec<String>, CameraError> 
     commands.sort();
     commands.dedup();
     Ok(commands)
+}
+
+/// Sensors from a `sensors` response. The field names besides `name` and
+/// `found` are not known, so the type is looked up under likely keys and
+/// every entry is kept in `raw`.
+pub fn parse_sensors(response: &Value) -> Vec<SensorInfo> {
+    let Some(list) = response.get("sensors").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    list.iter()
+        .filter_map(|entry| {
+            let text = |keys: &[&str]| {
+                keys.iter()
+                    .find_map(|key| entry.get(*key).and_then(Value::as_str))
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+            };
+            let found = entry.get("found").and_then(|v| match v {
+                Value::Bool(b) => Some(*b),
+                Value::Number(n) => n.as_f64().map(|f| f != 0.0),
+                Value::String(s) => match s.as_str() {
+                    "true" | "1" => Some(true),
+                    "false" | "0" => Some(false),
+                    _ => None,
+                },
+                _ => None,
+            });
+            Some(SensorInfo {
+                name: text(&["name", "sensorName"])?,
+                sensor_type: text(&["type", "sensorType", "source", "connection"]),
+                found,
+                raw: entry.clone(),
+            })
+        })
+        .collect()
+}
+
+/// Folders from a `mediaDirList` response (`mediaDirs`: strings or objects).
+pub fn parse_media_directories(response: &Value) -> Vec<String> {
+    let Some(list) = ["mediaDirs", "mediaDirList", "dirs"]
+        .iter()
+        .find_map(|key| response.get(*key).and_then(Value::as_array))
+    else {
+        return Vec::new();
+    };
+    list.iter()
+        .filter_map(|entry| match entry {
+            Value::String(path) => Some(path.clone()),
+            _ => ["path", "name", "dir"]
+                .iter()
+                .find_map(|key| entry.get(*key).and_then(Value::as_str))
+                .map(str::to_string),
+        })
+        .collect()
 }
 
 pub fn command_ack(command: &str, response: Value) -> CommandAck {
@@ -828,5 +886,28 @@ mod tests {
         });
         assert_eq!(parse_command_list(&response).unwrap(), ["locate", "status"]);
         assert!(parse_command_list(&json!({ "result": 1 })).is_err());
+    }
+
+    #[test]
+    fn parses_sensors_directories_and_favorites() {
+        let sensors = parse_sensors(&json!({ "result": 1, "sensors": [
+            { "name": "Heart rate", "type": "ANT", "found": "true" },
+            { "name": "Accelerometer", "type": "LOCAL", "found": 1 },
+            { "found": true }
+        ]}));
+        assert_eq!(sensors.len(), 2);
+        assert_eq!(sensors[0].sensor_type.as_deref(), Some("ANT"));
+        assert_eq!(sensors[0].found, Some(true));
+        assert!(parse_sensors(&json!({ "result": 1 })).is_empty());
+
+        assert_eq!(
+            parse_media_directories(
+                &json!({ "mediaDirs": ["2:/DCIM/100_VIRB", { "path": "2:/DCIM/101_VIRB" }] })
+            ),
+            ["2:/DCIM/100_VIRB", "2:/DCIM/101_VIRB"]
+        );
+
+        let media = parse_media_list(&fixture("real_fw420/media_list.json")).unwrap();
+        assert_eq!(media[0].favorite, Some(false));
     }
 }

@@ -3,6 +3,19 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
+## Unreleased
+
+- **Play videos** from the media library, streamed from the camera through the backend with seeking: the low-resolution copy (`.GLV`) by default, the original on request. 360° videos and photos open in the interactive 360° view.
+- **Telemetry under the video**: the FIT file is decoded (native parser) and shown as a GPS track, speed and altitude charts and summary figures (distance, top and average speed, altitude range, climb), synchronized with playback. Tapping the track or the chart seeks the video.
+- **Motion control** for the 360° view on phones: look around by moving the phone.
+- **Favourites**: mark media with a star (`setFavorite`) and filter the library by favourites.
+- **Sensors and media folders** under Advanced → Device (`sensors`, `mediaDirList`), and a **standby** button (`standby`).
+- **Export the GPS track** of a video as GPX or GeoJSON, next to its downloads. The GeoJSON also gives, for each point, its UTC time and its position in the video.
+- **Georeferenced frames**: extract frames from a video every N metres or seconds, as JPEG files with EXIF GPS and, for 360° videos, 2:1 equirectangular images with GPano panorama tags (Mapillary, Panoramax, photogrammetry), plus a `frames.geojson` index.
+- **360° live preview fixed**: the VIRB squeezes the 360° preview into 16:9, which the viewer used to reject (it expected 2:1), so it stayed flat.
+- **Author and source code**: the app (Advanced → About), the website and the README name the author, Maurizio Napolitano, and give the address of the source code, as the AGPL-3.0 asks.
+- README: removed an outdated limitation (the live preview and file deletion exist); phase 1 of the roadmap marked as done.
+
 ## 0.3.0
 
 - **Interactive 360° preview**: with the 360° lens, the live preview shows a perspective view of the sphere, as Garmin's app does: drag to look around, pinch or scroll to zoom, "Look ahead" to recenter. The flat (equirectangular) image is one tap away. Not yet tested on a real camera.

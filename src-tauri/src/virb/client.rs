@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use reqwest::header::CONTENT_TYPE;
+use reqwest::header::{CONTENT_RANGE, CONTENT_TYPE, RANGE};
 use reqwest::redirect::Policy;
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
@@ -13,8 +13,9 @@ use url::Url;
 
 use crate::camera::address::{normalize_address, resolve_camera_url};
 use crate::camera::{
-    CameraClient, CameraError, CameraFeature, CameraKind, CameraStatus, CommandAck, DeviceInfo,
-    FeatureList, FetchedResource, MediaItem, ProgressFn, WifiNetworks, WifiSecurity,
+    ByteRange, CameraClient, CameraError, CameraFeature, CameraKind, CameraStatus, CommandAck,
+    DeviceInfo, FeatureList, FetchedResource, MediaItem, ProgressFn, RangedResource, SensorInfo,
+    WifiNetworks, WifiSecurity,
 };
 
 use super::commands::{NetworkCommand, VirbCommand};
@@ -275,6 +276,34 @@ impl CameraClient for GarminVirb360Client {
         .await
     }
 
+    async fn sensors(&self) -> Result<Vec<SensorInfo>, CameraError> {
+        Ok(models::parse_sensors(
+            &self.execute(&VirbCommand::Sensors).await?,
+        ))
+    }
+
+    async fn standby(&self) -> Result<CommandAck, CameraError> {
+        self.acknowledge(VirbCommand::Standby).await
+    }
+
+    async fn media_directories(&self) -> Result<Vec<String>, CameraError> {
+        Ok(models::parse_media_directories(
+            &self.execute(&VirbCommand::MediaDirList).await?,
+        ))
+    }
+
+    async fn set_favorite(
+        &self,
+        media_url: &str,
+        favorite: bool,
+    ) -> Result<CommandAck, CameraError> {
+        self.acknowledge(VirbCommand::SetFavorite {
+            file: media_url.to_string(),
+            favorite,
+        })
+        .await
+    }
+
     async fn request_keyframe(&self) -> Result<(), CameraError> {
         self.execute(&VirbCommand::EnableIdr).await.map(|_| ())
     }
@@ -373,6 +402,75 @@ impl CameraClient for GarminVirb360Client {
         })
     }
 
+    async fn fetch_range(
+        &self,
+        url: &str,
+        range: Option<ByteRange>,
+        max_bytes: u64,
+    ) -> Result<RangedResource, CameraError> {
+        let url = resolve_camera_url(&self.base, url)?;
+        let timeout = self.config.transfer_read_timeout;
+        let mut request = self.transfer_http.get(url.clone());
+        if let Some(range) = range {
+            let end = range
+                .end
+                .unwrap_or(u64::MAX)
+                .min(range.start + max_bytes - 1);
+            request = request.header(RANGE, format!("bytes={}-{end}", range.start));
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|e| self.transport_error(&e, timeout))?;
+        let status = response.status();
+        Self::check_resource_status(&url, status)?;
+        let content_type = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        // A server that ignores Range answers 200 with the whole file: skip
+        // to the requested offset ourselves.
+        let (start, total, mut skip) = if status == reqwest::StatusCode::PARTIAL_CONTENT {
+            let (start, total) = response
+                .headers()
+                .get(CONTENT_RANGE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(parse_content_range)
+                .unwrap_or((range.map_or(0, |r| r.start), None));
+            (start, total, 0)
+        } else {
+            let start = range.map_or(0, |r| r.start);
+            (start, response.content_length(), start)
+        };
+        let wanted = range.and_then(|r| r.end).map_or(max_bytes, |end| {
+            (end + 1).saturating_sub(start).min(max_bytes)
+        });
+
+        let mut bytes = Vec::new();
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| self.transport_error(&e, timeout))?;
+            let mut chunk = &chunk[..];
+            if skip > 0 {
+                let n = (skip as usize).min(chunk.len());
+                chunk = &chunk[n..];
+                skip -= n as u64;
+            }
+            let room = (wanted as usize).saturating_sub(bytes.len());
+            bytes.extend_from_slice(&chunk[..chunk.len().min(room)]);
+            if bytes.len() as u64 >= wanted {
+                break; // Dropping the stream closes the connection.
+            }
+        }
+        Ok(RangedResource {
+            bytes,
+            start,
+            total,
+            content_type,
+        })
+    }
+
     async fn download_to(
         &self,
         url: &str,
@@ -454,9 +552,32 @@ async fn stream_to_file(
     Ok(received)
 }
 
+/// `bytes 0-99/1000` -> `(0, Some(1000))`; `*` totals are unknown.
+fn parse_content_range(value: &str) -> Option<(u64, Option<u64>)> {
+    let rest = value.trim().strip_prefix("bytes ")?;
+    let (span, total) = rest.split_once('/')?;
+    let start = span.split_once('-')?.0.trim().parse().ok()?;
+    Some((start, total.trim().parse().ok()))
+}
+
 /// `video.mp4` -> `video.mp4.part`
 pub(crate) fn partial_path(destination: &Path) -> PathBuf {
     let mut name = destination.file_name().unwrap_or_default().to_os_string();
     name.push(".part");
     destination.with_file_name(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_content_range() {
+        assert_eq!(
+            parse_content_range("bytes 0-99/1000"),
+            Some((0, Some(1000)))
+        );
+        assert_eq!(parse_content_range("bytes 500-999/*"), Some((500, None)));
+        assert_eq!(parse_content_range("items 0-1/2"), None);
+    }
 }

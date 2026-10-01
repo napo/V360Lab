@@ -95,12 +95,16 @@ pub struct DownloadOptions {
 
 /// `<root>/<YYYY-MM-DD>/<recording name>` for a media item.
 pub fn item_directory(root: &Path, item: &MediaItem) -> PathBuf {
-    let date = item
-        .timestamp
+    media_directory(root, &item.name, item.timestamp)
+}
+
+/// [`item_directory`] from the media name and date alone.
+pub fn media_directory(root: &Path, name: &str, timestamp: Option<i64>) -> PathBuf {
+    let date = timestamp
         .and_then(|t| DateTime::<Utc>::from_timestamp(t, 0))
         .map(|d| d.format("%Y-%m-%d").to_string())
         .unwrap_or_else(|| "undated".to_string());
-    let name = sanitize_file_name(&item.name);
+    let name = sanitize_file_name(name);
     let stem = match name.rsplit_once('.') {
         Some((stem, _)) if !stem.is_empty() => stem.to_string(),
         _ => name,

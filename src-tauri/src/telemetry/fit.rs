@@ -29,6 +29,10 @@ pub enum FitError {
     Io(#[from] std::io::Error),
     #[error("FIT decoding is not implemented yet")]
     NotImplemented,
+    #[error("The FIT file ends in the middle of a message")]
+    Truncated,
+    #[error("FIT data message uses undefined local type {0}")]
+    UnknownMessage(u8),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -88,6 +92,64 @@ pub fn empty_fit_file() -> Vec<u8> {
     bytes
 }
 
+/// One GPS fix for [`gps_track_file`].
+#[derive(Debug, Clone, Copy)]
+pub struct GpsFix {
+    pub unix_ms: i64,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub altitude_m: f64,
+    pub speed_mps: f64,
+}
+
+/// A FIT file shaped like a VIRB's: a `camera_event` video start at
+/// `video_start_ms` and one `gps_metadata` message per fix. Used by the mock
+/// camera so that the telemetry view can be tried without hardware.
+pub fn gps_track_file(video_start_ms: i64, fixes: &[GpsFix]) -> Vec<u8> {
+    const FIT_EPOCH_MS: i64 = 631_065_600_000;
+    let fit_time = |unix_ms: i64| {
+        (
+            ((unix_ms - FIT_EPOCH_MS) / 1000) as u32,
+            (unix_ms.rem_euclid(1000)) as u16,
+        )
+    };
+    let semicircles = |degrees: f64| ((degrees * 2_147_483_648.0 / 180.0) as i32).to_le_bytes();
+    let mut data = Vec::new();
+    // camera_event (161): timestamp, timestamp_ms, camera_event_type.
+    data.extend_from_slice(&[0x40, 0, 0, 161, 0, 3, 253, 4, 0x86, 0, 2, 0x84, 1, 1, 0x00]);
+    let (seconds, ms) = fit_time(video_start_ms);
+    data.push(0);
+    data.extend_from_slice(&seconds.to_le_bytes());
+    data.extend_from_slice(&ms.to_le_bytes());
+    data.push(0); // video start
+                  // gps_metadata (160): timestamp, ms, lat, lon, altitude, speed, UTC timestamp.
+    data.extend_from_slice(&[
+        0x41, 0, 0, 160, 0, 7, 253, 4, 0x86, 0, 2, 0x84, 1, 4, 0x85, 2, 4, 0x85, 3, 4, 0x86, 4, 4,
+        0x86, 6, 4, 0x86,
+    ]);
+    for fix in fixes {
+        let (seconds, ms) = fit_time(fix.unix_ms);
+        data.push(1);
+        data.extend_from_slice(&seconds.to_le_bytes());
+        data.extend_from_slice(&ms.to_le_bytes());
+        data.extend_from_slice(&semicircles(fix.latitude));
+        data.extend_from_slice(&semicircles(fix.longitude));
+        data.extend_from_slice(&(((fix.altitude_m + 500.0) * 5.0).round() as u32).to_le_bytes());
+        data.extend_from_slice(&((fix.speed_mps * 1000.0).round() as u32).to_le_bytes());
+        data.extend_from_slice(&seconds.to_le_bytes());
+    }
+    let mut bytes = vec![14u8, 0x20];
+    bytes.extend_from_slice(&2132u16.to_le_bytes());
+    bytes.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(b".FIT");
+    let header_crc = crc16(&bytes);
+    bytes.extend_from_slice(&header_crc.to_le_bytes());
+    bytes.extend_from_slice(&data);
+    let file_crc = crc16(&bytes);
+    bytes.extend_from_slice(&file_crc.to_le_bytes());
+    bytes
+}
+
 /// CRC-16 as specified by the FIT protocol.
 pub fn crc16(bytes: &[u8]) -> u16 {
     const TABLE: [u16; 16] = [
@@ -127,5 +189,25 @@ mod tests {
         let mut bytes = empty_fit_file();
         bytes[9] = b'X';
         assert!(matches!(read_header(&bytes), Err(FitError::BadSignature)));
+    }
+
+    #[test]
+    fn synthetic_track_decodes() {
+        let fixes: Vec<GpsFix> = (0..10)
+            .map(|i| GpsFix {
+                unix_ms: 1_720_000_000_000 + i * 1000,
+                latitude: 46.07 + i as f64 * 1e-4,
+                longitude: 11.12,
+                altitude_m: 194.0,
+                speed_mps: 4.5,
+            })
+            .collect();
+        let track =
+            crate::telemetry::decode::decode(&gps_track_file(1_720_000_000_000, &fixes)).unwrap();
+        assert_eq!(track.samples.len(), 10);
+        assert_eq!(track.samples[3].timestamp_ms, 1_720_000_003_000);
+        assert!((track.samples[3].latitude.unwrap() - 46.0703).abs() < 1e-6);
+        assert_eq!(track.samples[3].altitude_m, Some(194.0));
+        assert_eq!(track.camera_events[0].timestamp_ms, 1_720_000_000_000);
     }
 }

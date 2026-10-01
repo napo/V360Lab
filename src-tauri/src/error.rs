@@ -59,6 +59,10 @@ pub enum AppError {
         message: String,
     },
 
+    /// A FIT file that could not be decoded.
+    #[error("Could not read the telemetry: {detail}")]
+    Telemetry { detail: String },
+
     /// Wi-Fi network details the camera would not accept.
     /// `reason` is a stable code the UI translates.
     #[error("Invalid Wi-Fi network: {message}")]
@@ -104,6 +108,7 @@ impl AppError {
             Self::Settings { .. } => "settings",
             Self::Preview { .. } => "preview",
             Self::Wifi { .. } => "wifi",
+            Self::Telemetry { .. } => "telemetry",
         }
     }
 
@@ -111,7 +116,7 @@ impl AppError {
         let mut params = Map::new();
         match self {
             Self::Camera(e) => return e.params(),
-            Self::NotConnected => {}
+            Self::NotConnected | Self::Telemetry { .. } => {}
             Self::NotACamera { address, .. } => {
                 params.insert("address".into(), address.as_str().into());
             }
@@ -146,7 +151,7 @@ impl AppError {
                     .unwrap_or_default()
             )),
             Self::Filesystem { source, .. } => Some(source.to_string()),
-            Self::Preview { detail, .. } => Some(detail.clone()),
+            Self::Preview { detail, .. } | Self::Telemetry { detail } => Some(detail.clone()),
             _ => None,
         }
     }

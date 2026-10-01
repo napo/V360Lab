@@ -3,6 +3,8 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { ActivityPanel } from "../components/ActivityPanel";
 import { DeleteResult } from "../components/media/DeleteResult";
 import { MediaGrid } from "../components/media/MediaGrid";
+import { MediaViewer } from "../components/media/MediaViewer";
+import { TelemetryPanel } from "../components/media/TelemetryPanel";
 import { useActivity } from "../hooks/useActivity";
 import { useAsyncResource } from "../hooks/useAsyncResource";
 import { useCamera } from "../hooks/useCamera";
@@ -17,7 +19,7 @@ import type { AppError } from "../types/errors";
 import { toAppError } from "../utils/errors";
 import { formatBytes } from "../utils/format";
 
-type Filter = "all" | MediaType;
+type Filter = "all" | "favorites" | MediaType;
 
 export function MediaPage() {
   const loading = useActivity();
@@ -36,7 +38,7 @@ export function MediaPage() {
     }
   });
   const { view } = useSettings();
-  const { status } = useCamera();
+  const { status, supports } = useCamera();
   const { start } = useDownloads();
   const { t, tx } = useI18n();
   const [filter, setFilter] = useState<Filter>("all");
@@ -45,13 +47,19 @@ export function MediaPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteReport, setDeleteReport] = useState<DeleteReport | null>(null);
   const [deleteError, setDeleteError] = useState<AppError | null>(null);
+  const [favoriteError, setFavoriteError] = useState<AppError | null>(null);
+  const [favoriteBusy, setFavoriteBusy] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<MediaItem | null>(null);
 
   const recording = status?.recordingState === "recording";
 
   const items = useMemo(() => {
     const all = media.data ?? [];
     return all
-      .filter((item) => filter === "all" || item.mediaType === filter)
+      .filter(
+        (item) =>
+          filter === "all" || (filter === "favorites" ? item.favorite === true : item.mediaType === filter),
+      )
       .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
   }, [media.data, filter]);
 
@@ -84,6 +92,19 @@ export function MediaPage() {
   const downloadSelected = async () => {
     for (const item of selectedItems) {
       if (item.url) await start(item, "media", options);
+    }
+  };
+
+  const toggleFavorite = async (item: MediaItem) => {
+    setFavoriteBusy(item.id);
+    setFavoriteError(null);
+    try {
+      const updated = await cameraService.setFavorite(item, !item.favorite);
+      media.update((all) => all?.map((m) => (m.id === updated.id ? updated : m)) ?? all);
+    } catch (e) {
+      setFavoriteError(toAppError(e));
+    } finally {
+      setFavoriteBusy(null);
     }
   };
 
@@ -134,6 +155,7 @@ export function MediaPage() {
           <option value="video">{t("media.filterVideo")}</option>
           <option value="photo">{t("media.filterPhoto")}</option>
           <option value="other">{t("media.filterOther")}</option>
+          <option value="favorites">{t("media.filterFavorites")}</option>
         </select>
         <label className="checkbox">
           <input
@@ -195,6 +217,7 @@ export function MediaPage() {
       )}
       <ActivityPanel activity={deletion.state} title={t("activity.titleDelete")} />
       {deleteReport && <DeleteResult report={deleteReport} />}
+      {favoriteError && <ErrorBanner error={favoriteError} title={t("media.favoriteFailed")} />}
       {deleteError && !deletion.state.error && (
         <ErrorBanner error={deleteError} title={t("media.deleteTitle")} />
       )}
@@ -213,7 +236,19 @@ export function MediaPage() {
           onToggleSelected={toggleSelected}
           onDelete={(item) => void deleteItems([item])}
           deleteDisabled={deleting || recording}
+          onToggleFavorite={supports("setFavorite") ? (item) => void toggleFavorite(item) : undefined}
+          favoriteBusy={favoriteBusy}
+          onOpen={setViewing}
         />
+      )}
+      {viewing && (
+        <MediaViewer item={viewing} onClose={() => setViewing(null)}>
+          {(time, seek) =>
+            viewing.mediaType === "video" && viewing.hasFit ? (
+              <TelemetryPanel item={viewing} time={time} seek={seek} />
+            ) : null
+          }
+        </MediaViewer>
       )}
     </div>
   );

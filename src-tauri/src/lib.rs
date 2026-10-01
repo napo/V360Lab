@@ -11,7 +11,9 @@ pub mod commands;
 pub mod discovery;
 pub mod downloads;
 pub mod error;
+pub mod geotag;
 pub mod library;
+pub mod media_protocol;
 pub mod preview;
 pub mod settings;
 pub mod state;
@@ -52,6 +54,15 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .register_asynchronous_uri_scheme_protocol(
+            media_protocol::SCHEME,
+            |ctx, request, responder| {
+                let app = ctx.app_handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    responder.respond(media_protocol::handle(&app, request).await);
+                });
+            },
+        )
         .setup(|app| {
             let paths = app.path();
             let settings_path = paths.app_config_dir()?.join("settings.json");
@@ -101,6 +112,14 @@ pub fn run() {
             commands::remove_wifi_network,
             commands::get_supported_commands,
             commands::locate_camera,
+            commands::get_sensors,
+            commands::get_media_directories,
+            commands::standby_camera,
+            commands::set_media_favorite,
+            commands::get_media_telemetry,
+            commands::export_track,
+            commands::save_frame,
+            commands::write_frames_index,
         ])
         .run(tauri::generate_context!())
         .expect("error while running V360Lab");

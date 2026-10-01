@@ -63,6 +63,32 @@ pub trait CameraClient: Send + Sync {
         Err(unsupported("locate"))
     }
 
+    /// Sensors paired with the camera.
+    async fn sensors(&self) -> Result<Vec<SensorInfo>, CameraError> {
+        Err(unsupported("sensors"))
+    }
+
+    /// Puts the camera in standby. It becomes unreachable afterwards.
+    async fn standby(&self) -> Result<CommandAck, CameraError> {
+        Err(unsupported("standby"))
+    }
+
+    /// Folders holding media on the camera's card.
+    async fn media_directories(&self) -> Result<Vec<String>, CameraError> {
+        Err(unsupported("mediaDirList"))
+    }
+
+    /// Marks a file (URL as reported by the media list) as favourite or
+    /// not. A success response does not guarantee the change; callers
+    /// verify with the media list.
+    async fn set_favorite(
+        &self,
+        _media_url: &str,
+        _favorite: bool,
+    ) -> Result<CommandAck, CameraError> {
+        Err(unsupported("setFavorite"))
+    }
+
     /// Asks for a keyframe on the live preview stream. Best effort: cameras
     /// that cannot do it simply ignore the request.
     async fn request_keyframe(&self) -> Result<(), CameraError> {
@@ -103,6 +129,33 @@ pub trait CameraClient: Send + Sync {
         url: &str,
         max_bytes: u64,
     ) -> Result<FetchedResource, CameraError>;
+
+    /// Fetches at most `max_bytes` of a resource, starting at `range` (the
+    /// whole resource when `None`), so that video can be played and
+    /// seeked without downloading it first.
+    async fn fetch_range(
+        &self,
+        url: &str,
+        range: Option<ByteRange>,
+        max_bytes: u64,
+    ) -> Result<RangedResource, CameraError> {
+        // Fallback: fetch everything and cut (fine for small resources).
+        let resource = self
+            .fetch_resource(url, max_bytes.max(64 * 1024 * 1024))
+            .await?;
+        let total = resource.bytes.len() as u64;
+        let start = range.map_or(0, |r| r.start).min(total);
+        let end = range
+            .and_then(|r| r.end)
+            .map_or(total, |end| (end + 1).min(total))
+            .min(start + max_bytes);
+        Ok(RangedResource {
+            bytes: resource.bytes[start as usize..end as usize].to_vec(),
+            start,
+            total: Some(total),
+            content_type: resource.content_type,
+        })
+    }
 
     /// Streams a camera resource to `destination`, returning the byte count.
     /// Implementations must not leave a partial file at `destination`.

@@ -5,9 +5,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use v360lab_lib::camera::{CameraClient, CameraError, MediaType, RecordingState, WifiSecurity};
+use v360lab_lib::camera::{
+    ByteRange, CameraClient, CameraError, MediaType, RecordingState, WifiSecurity,
+};
 use v360lab_lib::virb::{GarminVirb360Client, VirbClientConfig};
-use wiremock::matchers::{body_json, method, path};
+use wiremock::matchers::{body_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn fixture(name: &str) -> Value {
@@ -465,7 +467,12 @@ async fn command_list_locate_and_keyframe_payloads() {
     )
     .await;
     for command in ["locate", "found", "enableIDR"] {
-        mount_network(&server, json!({ "command": command }), json!({ "result": 1 })).await;
+        mount_network(
+            &server,
+            json!({ "command": command }),
+            json!({ "result": 1 }),
+        )
+        .await;
     }
     let client = client_for(&server);
 
@@ -486,5 +493,96 @@ async fn missing_command_list_means_unknown() {
         .respond_with(ResponseTemplate::new(400).set_body_string("<html>400 Bad Request</html>"))
         .mount(&server)
         .await;
-    assert_eq!(client_for(&server).supported_commands().await.unwrap(), None);
+    assert_eq!(
+        client_for(&server).supported_commands().await.unwrap(),
+        None
+    );
+}
+
+#[tokio::test]
+async fn sensors_standby_directories_and_favorite_payloads() {
+    let server = MockServer::start().await;
+    mount_network(
+        &server,
+        json!({ "command": "sensors" }),
+        json!({ "result": 1, "sensors": [{ "name": "Heart rate", "type": "ANT", "found": true }] }),
+    )
+    .await;
+    mount_network(
+        &server,
+        json!({ "command": "standby" }),
+        json!({ "result": 1 }),
+    )
+    .await;
+    mount_network(
+        &server,
+        json!({ "command": "mediaDirList" }),
+        json!({ "result": 1, "mediaDirs": ["2:/DCIM/100_VIRB"] }),
+    )
+    .await;
+    mount_network(
+        &server,
+        json!({ "command": "setFavorite", "file": "http://x/V1.MP4", "favorite": "true" }),
+        json!({ "result": 1 }),
+    )
+    .await;
+    let client = client_for(&server);
+
+    assert_eq!(client.sensors().await.unwrap()[0].name, "Heart rate");
+    client.standby().await.unwrap();
+    assert_eq!(
+        client.media_directories().await.unwrap(),
+        ["2:/DCIM/100_VIRB"]
+    );
+    client.set_favorite("http://x/V1.MP4", true).await.unwrap();
+}
+
+#[tokio::test]
+async fn fetch_range_uses_partial_content() {
+    let server = MockServer::start().await;
+    let body: Vec<u8> = (0..100u8).collect();
+    Mock::given(method("GET"))
+        .and(path("/DCIM/V1.GLV"))
+        .and(header("range", "bytes=10-19"))
+        .respond_with(
+            ResponseTemplate::new(206)
+                .insert_header("content-range", "bytes 10-19/100")
+                .set_body_bytes(body[10..20].to_vec()),
+        )
+        .mount(&server)
+        .await;
+    let client = client_for(&server);
+    let part = client
+        .fetch_range(
+            "/DCIM/V1.GLV",
+            Some(ByteRange {
+                start: 10,
+                end: Some(19),
+            }),
+            1024,
+        )
+        .await
+        .unwrap();
+    assert_eq!(part.start, 10);
+    assert_eq!(part.total, Some(100));
+    assert_eq!(part.bytes, body[10..20]);
+}
+
+#[tokio::test]
+async fn fetch_range_cuts_a_whole_file_answer() {
+    let server = MockServer::start().await;
+    let body: Vec<u8> = (0..100u8).collect();
+    Mock::given(method("GET"))
+        .and(path("/DCIM/V1.GLV"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
+        .mount(&server)
+        .await;
+    let client = client_for(&server);
+    let part = client
+        .fetch_range("/DCIM/V1.GLV", Some(ByteRange { start: 90, end: None }), 1024)
+        .await
+        .unwrap();
+    assert_eq!(part.start, 90);
+    assert_eq!(part.total, Some(100));
+    assert_eq!(part.bytes, body[90..]);
 }

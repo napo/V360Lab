@@ -14,7 +14,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::camera::{
     CameraClient, CameraError, CameraKind, CameraStatus, CommandAck, DeviceInfo, FeatureList,
-    FetchedResource, MediaItem, ProgressFn, WifiNetworks, WifiSecurity,
+    FetchedResource, MediaItem, ProgressFn, SensorInfo, WifiNetworks, WifiSecurity,
 };
 use crate::telemetry::fit;
 
@@ -88,6 +88,30 @@ impl MockVirb360Client {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         f(&mut state)
+    }
+
+    /// A FIT file with a GPS loop around Trento for the video that refers
+    /// to `url`, or an empty one.
+    fn fit_file(&self, url: &str) -> Vec<u8> {
+        let video = self.with_state(|s| s.media.iter().find(|m| m["fitURL"] == url).cloned());
+        let Some(video) = video else {
+            return fit::empty_fit_file();
+        };
+        let start_ms = video["date"].as_i64().unwrap_or(0) * 1000;
+        let seconds = video["duration"].as_f64().unwrap_or(60.0).clamp(1.0, 900.0) as i64;
+        let fixes: Vec<fit::GpsFix> = (0..=seconds)
+            .map(|i| {
+                let angle = i as f64 / seconds as f64 * std::f64::consts::TAU;
+                fit::GpsFix {
+                    unix_ms: start_ms + i * 1000,
+                    latitude: 46.0679 + 0.004 * angle.sin(),
+                    longitude: 11.1211 + 0.006 * (1.0 - angle.cos()),
+                    altitude_m: 194.0 + 25.0 * (angle / 2.0).sin(),
+                    speed_mps: 5.0 + 2.0 * (angle * 3.0).sin(),
+                }
+            })
+            .collect();
+        fit::gps_track_file(start_ms, &fixes)
     }
 
     fn failed(command: &str) -> CameraError {
@@ -260,7 +284,11 @@ impl CameraClient for MockVirb360Client {
             "snapPicture",
             "stopStillRecording",
             "mediaList",
+            "mediaDirList",
             "deleteFile",
+            "setFavorite",
+            "sensors",
+            "standby",
             "locate",
             "found",
             "networks",
@@ -275,6 +303,40 @@ impl CameraClient for MockVirb360Client {
         self.simulate_latency().await;
         let command = if on { "locate" } else { "found" };
         Ok(models::command_ack(command, json!({ "result": 1 })))
+    }
+
+    async fn sensors(&self) -> Result<Vec<SensorInfo>, CameraError> {
+        self.simulate_latency().await;
+        Ok(models::parse_sensors(&json!({ "result": 1, "sensors": [
+            { "name": "Heart rate", "type": "ANT", "found": true },
+            { "name": "Cadence", "type": "ANT", "found": false }
+        ]})))
+    }
+
+    async fn standby(&self) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        Ok(models::command_ack("standby", json!({ "result": 1 })))
+    }
+
+    async fn media_directories(&self) -> Result<Vec<String>, CameraError> {
+        self.simulate_latency().await;
+        Ok(models::parse_media_directories(
+            &json!({ "result": 1, "mediaDirs": ["2:/DCIM/100_VIRB"] }),
+        ))
+    }
+
+    async fn set_favorite(
+        &self,
+        media_url: &str,
+        favorite: bool,
+    ) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        self.with_state(|s| {
+            for item in s.media.iter_mut().filter(|m| m["url"] == media_url) {
+                item["fav"] = json!(if favorite { "true" } else { "false" });
+            }
+        });
+        Ok(models::command_ack("setFavorite", json!({ "result": 1 })))
     }
 
     async fn wifi_networks(&self) -> Result<WifiNetworks, CameraError> {
@@ -340,6 +402,12 @@ impl CameraClient for MockVirb360Client {
         url: &str,
         max_bytes: u64,
     ) -> Result<FetchedResource, CameraError> {
+        if url.to_ascii_lowercase().ends_with(".fit") {
+            return Ok(FetchedResource {
+                bytes: self.fit_file(url),
+                content_type: Some("application/octet-stream".to_string()),
+            });
+        }
         let name = url.rsplit('/').next().unwrap_or(url);
         let svg = thumbnail_svg(name);
         if svg.len() as u64 > max_bytes {
@@ -361,7 +429,7 @@ impl CameraClient for MockVirb360Client {
         progress: ProgressFn<'_>,
     ) -> Result<u64, CameraError> {
         let content = if url.to_ascii_lowercase().ends_with(".fit") {
-            fit::empty_fit_file()
+            self.fit_file(url)
         } else {
             let line = format!("V360Lab mock media placeholder for {url}\n");
             line.as_bytes()
@@ -405,6 +473,7 @@ fn video_entry(index: u32, date: i64, duration: f64, size: u64, has_fit: bool) -
     json!({
         "date": date,
         "duration": duration,
+        "fav": "false",
         "fileSize": size,
         "fitURL": if has_fit { format!("{MOCK_ADDRESS}/GMetrix/V00{index:05}.fit") } else { String::new() },
         "lensMode": "360",
@@ -421,6 +490,7 @@ fn photo_entry(index: u32, date: i64) -> Value {
     let base = format!("{MOCK_ADDRESS}/DCIM/100_VIRB");
     json!({
         "date": date,
+        "fav": "false",
         "fileSize": 7_340_032,
         "fitURL": "",
         "lensMode": "360",
