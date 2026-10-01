@@ -454,3 +454,37 @@ async fn rejected_wifi_password_is_not_reported() {
     let detail = err.detail().unwrap_or_default();
     assert!(!detail.contains("password1"), "{detail}");
 }
+
+#[tokio::test]
+async fn command_list_locate_and_keyframe_payloads() {
+    let server = MockServer::start().await;
+    mount_network(
+        &server,
+        json!({ "command": "commandList" }),
+        json!({ "result": 1, "commandList": [{ "command": "status" }, { "command": "locate" }] }),
+    )
+    .await;
+    for command in ["locate", "found", "enableIDR"] {
+        mount_network(&server, json!({ "command": command }), json!({ "result": 1 })).await;
+    }
+    let client = client_for(&server);
+
+    assert_eq!(
+        client.supported_commands().await.unwrap(),
+        Some(vec!["locate".to_string(), "status".to_string()])
+    );
+    client.locate(true).await.unwrap();
+    client.locate(false).await.unwrap();
+    client.request_keyframe().await.unwrap();
+}
+
+#[tokio::test]
+async fn missing_command_list_means_unknown() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/virb"))
+        .respond_with(ResponseTemplate::new(400).set_body_string("<html>400 Bad Request</html>"))
+        .mount(&server)
+        .await;
+    assert_eq!(client_for(&server).supported_commands().await.unwrap(), None);
+}

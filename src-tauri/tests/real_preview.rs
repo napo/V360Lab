@@ -21,10 +21,14 @@ async fn records_three_seconds_of_preview() {
     let sink_messages = messages.clone();
     let manager = PreviewManager::default();
     manager
-        .start(&url, Box::new(move |m| {
-            sink_messages.lock().unwrap().push(m);
-            true
-        }))
+        .start(
+            &url,
+            Box::new(move |m| {
+                sink_messages.lock().unwrap().push(m);
+                true
+            }),
+            Box::new(|| {}),
+        )
         .await
         .unwrap();
     let secs = std::env::var("PREVIEW_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(3);

@@ -19,6 +19,7 @@ import type {
 } from "../types/camera";
 import type { AppError } from "../types/errors";
 import { isConnectionLoss, toAppError } from "../utils/errors";
+import { commandSupported } from "../utils/commands";
 import { featureValue, findFeature } from "../utils/features";
 
 export type ConnectionState =
@@ -30,6 +31,10 @@ export type ConnectionState =
 export interface CameraContextValue {
   connection: ConnectionState;
   deviceInfo: DeviceInfo | null;
+  /** Commands the firmware reports (`commandList`); null when unknown. */
+  supportedCommands: string[] | null;
+  /** False only when the camera's command list leaves `command` out. */
+  supports: (command: string) => boolean;
   status: CameraStatus | null;
   statusError: AppError | null;
   statusUpdatedAt: Date | null;
@@ -68,6 +73,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const { view, reload: reloadSettings } = useSettings();
   const [connection, setConnection] = useState<ConnectionState>({ status: "disconnected" });
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+  const [supportedCommands, setSupportedCommands] = useState<string[] | null>(null);
   const [status, setStatus] = useState<CameraStatus | null>(null);
   const [statusError, setStatusError] = useState<AppError | null>(null);
   const [statusUpdatedAt, setStatusUpdatedAt] = useState<Date | null>(null);
@@ -161,6 +167,14 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     [loadFeatures, refreshStatus],
   );
 
+  const loadSupportedCommands = useCallback(async () => {
+    try {
+      setSupportedCommands(await cameraService.supportedCommands());
+    } catch {
+      setSupportedCommands(null);
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
     try {
       setDeviceInfo(await cameraService.deviceInfo());
@@ -169,7 +183,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     }
     await refreshStatus();
     void loadFeatures();
-  }, [refreshStatus, loadFeatures]);
+    void loadSupportedCommands();
+  }, [refreshStatus, loadFeatures, loadSupportedCommands]);
 
   const connect = useCallback(
     async (address: string, mock: boolean, activityId: string) => {
@@ -183,13 +198,14 @@ export function CameraProvider({ children }: { children: ReactNode }) {
         setConnection({ status: "connected", kind: info.kind, address: info.address });
         void reloadSettings();
         void loadFeatures();
+        void loadSupportedCommands();
         return true;
       } catch (e) {
         setConnection({ status: "error", error: toAppError(e), address, mock });
         return false;
       }
     },
-    [applyStatus, reloadSettings, loadFeatures],
+    [applyStatus, reloadSettings, loadFeatures, loadSupportedCommands],
   );
 
   const disconnect = useCallback(async () => {
@@ -198,6 +214,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     } finally {
       setConnection({ status: "disconnected" });
       setDeviceInfo(null);
+      setSupportedCommands(null);
       setStatus(null);
       setStatusError(null);
       setStatusUpdatedAt(null);
@@ -257,11 +274,17 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   }, [connection.status, pollSecs, refreshStatus]);
 
   const shootingMode = featureValue(findFeature(features, "shootingMode"));
+  const supports = useCallback(
+    (command: string) => commandSupported(supportedCommands, command),
+    [supportedCommands],
+  );
 
   const value = useMemo<CameraContextValue>(
     () => ({
       connection,
       deviceInfo,
+      supportedCommands,
+      supports,
       status,
       statusError,
       statusUpdatedAt,
@@ -286,6 +309,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     [
       connection,
       deviceInfo,
+      supportedCommands,
+      supports,
       status,
       statusError,
       statusUpdatedAt,

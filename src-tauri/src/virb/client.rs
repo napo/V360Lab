@@ -255,6 +255,30 @@ impl CameraClient for GarminVirb360Client {
         }
     }
 
+    async fn supported_commands(&self) -> Result<Option<Vec<String>>, CameraError> {
+        match self.execute(&VirbCommand::CommandList).await {
+            Ok(response) => Ok(Some(models::parse_command_list(&response)?)),
+            // Firmware without `commandList`.
+            Err(CameraError::UnsupportedCommand { .. } | CameraError::CommandFailed { .. }) => {
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn locate(&self, on: bool) -> Result<CommandAck, CameraError> {
+        self.acknowledge(if on {
+            VirbCommand::Locate
+        } else {
+            VirbCommand::Found
+        })
+        .await
+    }
+
+    async fn request_keyframe(&self) -> Result<(), CameraError> {
+        self.execute(&VirbCommand::EnableIdr).await.map(|_| ())
+    }
+
     async fn wifi_networks(&self) -> Result<WifiNetworks, CameraError> {
         let networks = |command| VirbCommand::Networks(command);
         let access_point_ssid =

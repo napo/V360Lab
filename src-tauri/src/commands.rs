@@ -3,6 +3,7 @@
 //! Commands are camera-agnostic: they operate on the connected
 //! [`CameraClient`], whichever implementation it is.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use base64::Engine;
@@ -396,21 +397,46 @@ pub async fn start_preview(
     channel: Channel<InvokeResponseBody>,
 ) -> CommandResult<()> {
     let result = async {
-        let url = state
-            .camera()
-            .await?
-            .live_preview_url()
-            .await?
-            .ok_or(AppError::Preview {
-                reason: PreviewFailure::Unsupported,
-                detail: "this camera has no live preview".into(),
-            })?;
+        let camera = state.camera().await?;
+        let url = camera.live_preview_url().await?.ok_or(AppError::Preview {
+            reason: PreviewFailure::Unsupported,
+            detail: "this camera has no live preview".into(),
+        })?;
         let sink: preview::Sink =
             Box::new(move |message| channel.send(InvokeResponseBody::Raw(message)).is_ok());
-        state.preview.start(&url, sink).await
+        state
+            .preview
+            .start(&url, sink, keyframe_requester(camera))
+            .await
     }
     .await;
     logged("start_preview", result)
+}
+
+/// Sends `enableIDR` in the background; stops trying once the camera says
+/// it does not support it.
+fn keyframe_requester(camera: Arc<dyn CameraClient>) -> preview::KeyframeRequest {
+    let unsupported = Arc::new(AtomicBool::new(false));
+    Box::new(move || {
+        if unsupported.load(Ordering::Relaxed) {
+            return;
+        }
+        let camera = camera.clone();
+        let unsupported = unsupported.clone();
+        tauri::async_runtime::spawn(async move {
+            match camera.request_keyframe().await {
+                Ok(()) => log::debug!("Live preview: keyframe requested"),
+                Err(
+                    e
+                    @ (CameraError::UnsupportedCommand { .. } | CameraError::CommandFailed { .. }),
+                ) => {
+                    log::info!("Live preview: the camera does not take keyframe requests ({e})");
+                    unsupported.store(true, Ordering::Relaxed);
+                }
+                Err(e) => log::debug!("Live preview: keyframe request failed: {e}"),
+            }
+        });
+    })
 }
 
 #[tauri::command]
@@ -500,4 +526,20 @@ pub async fn remove_wifi_network(
     }
     .await;
     logged("remove_wifi_network", result)
+}
+
+/// Commands the camera supports, or `None` when it cannot tell.
+#[tauri::command]
+pub async fn get_supported_commands(
+    state: State<'_, AppState>,
+) -> CommandResult<Option<Vec<String>>> {
+    let result = async { Ok(state.camera().await?.supported_commands().await?) }.await;
+    logged("get_supported_commands", result)
+}
+
+/// Starts (`on`) or stops the camera's locate signal (sound and lights).
+#[tauri::command]
+pub async fn locate_camera(state: State<'_, AppState>, on: bool) -> CommandResult<CommandAck> {
+    let result = async { Ok(state.camera().await?.locate(on).await?) }.await;
+    logged("locate_camera", result)
 }

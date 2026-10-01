@@ -6,7 +6,7 @@ use crate::camera::WifiSecurity;
 
 /// Commands V360Lab sends to the camera.
 ///
-/// Other VIRB commands (e.g. `locate`) are not used yet.
+/// `docs/virb-http-api.md` lists the commands not used yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VirbCommand {
     DeviceInfo,
@@ -37,6 +37,14 @@ pub enum VirbCommand {
     /// Wi-Fi management. All operations share the `networks` command and
     /// are selected by `subCommand` (see [`NetworkCommand`]).
     Networks(NetworkCommand),
+    /// Commands the firmware supports: `{"commandList": [{"command": …}]}`.
+    CommandList,
+    /// Makes the camera signal its position (sound and lights) until `found`.
+    Locate,
+    Found,
+    /// Asks for a keyframe on the live preview stream, so that the image
+    /// recovers at once after a lost packet.
+    EnableIdr,
 }
 
 /// `networks` sub-commands, as sent by Garmin's VIRB app (recovered from
@@ -107,6 +115,10 @@ impl VirbCommand {
             Self::DeleteFile { .. } => "deleteFile",
             Self::LivePreview => "livePreview",
             Self::Networks(_) => "networks",
+            Self::CommandList => "commandList",
+            Self::Locate => "locate",
+            Self::Found => "found",
+            Self::EnableIdr => "enableIDR",
         }
     }
 

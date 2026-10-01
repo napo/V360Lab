@@ -151,11 +151,13 @@ The Java side has Garmin MAC OUI ranges (`00:05:4f`, `10:4e:89`, `10:c6:fc`,
 (form-urlencoded) are used to post camera error logs and to check for firmware
 updates.
 
-## Differences from V360Lab (0.2.0)
+## Differences from V360Lab (0.3.0)
 
 - `livePreview`: V360Lab sends `streamType: "rtp"` (required on firmware
   4.20) but not `maxResolutionVertical` and `liveStreamActive`.
 - `networks`: implemented as described above, not yet tested on a camera.
-- Not implemented yet: `sensors`, `commandList`, `enableIDR`, `mediaDirList`,
-  `setFavorite`, `locate`/`found`, `restoreDefaults`, error log,
-  `sw_update`, `exportService*`, Wake-on-WLAN.
+- `commandList`, `locate`/`found` and `enableIDR` (sent while the preview
+  waits for a keyframe, at most once per second): implemented, not yet
+  tested on a camera.
+- Not implemented yet: `sensors`, `mediaDirList`, `setFavorite`, `standby`,
+  `restoreDefaults`, error log, `sw_update`, `exportService*`, Wake-on-WLAN.

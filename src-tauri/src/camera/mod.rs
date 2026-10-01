@@ -52,6 +52,23 @@ pub trait CameraClient: Send + Sync {
         Ok(None)
     }
 
+    /// Names of the commands the firmware supports, or `None` when the
+    /// camera cannot tell.
+    async fn supported_commands(&self) -> Result<Option<Vec<String>>, CameraError> {
+        Ok(None)
+    }
+
+    /// Starts (`true`) or stops the camera's locate signal (sound, lights).
+    async fn locate(&self, _on: bool) -> Result<CommandAck, CameraError> {
+        Err(unsupported("locate"))
+    }
+
+    /// Asks for a keyframe on the live preview stream. Best effort: cameras
+    /// that cannot do it simply ignore the request.
+    async fn request_keyframe(&self) -> Result<(), CameraError> {
+        Ok(())
+    }
+
     /// Wi-Fi networks saved on and visible to the camera, plus the name of
     /// the camera's own network.
     async fn wifi_networks(&self) -> Result<WifiNetworks, CameraError> {

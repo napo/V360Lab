@@ -1,7 +1,7 @@
 {
   "name": "v360lab",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Open-source toolkit for Garmin VIRB 360 video, telemetry and computer vision.",
   "license": "AGPL-3.0-only",
   "type": "module",

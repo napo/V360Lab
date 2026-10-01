@@ -99,6 +99,8 @@ pub fn run() {
             commands::add_wifi_network,
             commands::connect_wifi_network,
             commands::remove_wifi_network,
+            commands::get_supported_commands,
+            commands::locate_camera,
         ])
         .run(tauri::generate_context!())
         .expect("error while running V360Lab");

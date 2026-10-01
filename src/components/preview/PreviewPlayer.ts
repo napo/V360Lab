@@ -1,10 +1,16 @@
 import { RtpClock, type PreviewMessage } from "../../services/previewService";
 
-/** Frames waiting in the decoder above which we skip to the next keyframe. */
-const MAX_DECODE_QUEUE = 4;
+/**
+ * Frames waiting in the decoder above which we skip to the next keyframe.
+ * Hardware decoders hold a few frames, and 360° frames take longer: a
+ * lower limit made the 360° preview jump from keyframe to keyframe.
+ */
+const MAX_DECODE_QUEUE = 16;
 
 export interface PlayerEvents {
   onFirstFrame: (width: number, height: number) => void;
+  /** After every frame drawn on the canvas. */
+  onFrame?: () => void;
   onDecodeError: (message: string) => void;
 }
 
@@ -93,6 +99,7 @@ export class PreviewPlayer {
       }
       this.canvas.getContext("2d")?.drawImage(frame, 0, 0, width, height);
       if (this.frames++ === 0) this.events.onFirstFrame(width, height);
+      this.events.onFrame?.();
     } finally {
       frame.close();
     }

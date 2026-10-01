@@ -488,6 +488,31 @@ pub fn parse_ap_ssid(response: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Command names from a `commandList` response. Garmin's app reads
+/// `commandList[].command`; plain strings are accepted too.
+pub fn parse_command_list(response: &Value) -> Result<Vec<String>, CameraError> {
+    let Some(list) = response.get("commandList").and_then(Value::as_array) else {
+        return Err(malformed(
+            "commandList",
+            "missing \"commandList\" array",
+            response,
+        ));
+    };
+    let mut commands: Vec<String> = list
+        .iter()
+        .filter_map(|entry| match entry {
+            Value::String(name) => Some(name.as_str()),
+            _ => entry.get("command").and_then(Value::as_str),
+        })
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .collect();
+    commands.sort();
+    commands.dedup();
+    Ok(commands)
+}
+
 pub fn command_ack(command: &str, response: Value) -> CommandAck {
     CommandAck {
         command: command.to_string(),
@@ -793,5 +818,15 @@ mod tests {
             Some("VIRB 360 1234".into())
         );
         assert_eq!(parse_ap_ssid(&json!({ "result": 1 })), None);
+    }
+
+    #[test]
+    fn parses_command_list() {
+        let response = json!({
+            "result": 1,
+            "commandList": [{ "command": "status" }, "locate", { "command": "status" }, { "other": 1 }]
+        });
+        assert_eq!(parse_command_list(&response).unwrap(), ["locate", "status"]);
+        assert!(parse_command_list(&json!({ "result": 1 })).is_err());
     }
 }

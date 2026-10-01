@@ -21,13 +21,13 @@ window.SITE_TEXT = {
       "One button: tries the last camera, then the camera's own Wi-Fi, then scans your local network. The camera is usually found in 2–3 seconds, with each step shown as it happens.",
     f2Title: "Live preview and capture",
     f2Text:
-      "See what the camera sees, switch between video and photo, choose 360°, front, rear or RAW lens mode, single, burst or interval photos, and start or stop with one big shutter button.",
+      "See what the camera sees and look around the 360° view with your finger, switch between video and photo, choose 360°, front, rear or RAW lens mode, single, burst or interval photos, and start or stop with one big shutter button.",
     f3Title: "Media and telemetry",
     f3Text:
       "Browse the card with thumbnails, download media together with FIT telemetry and the original camera metadata, and delete files with verification.",
     f4Title: "All camera settings",
     f4Text:
-      "Every setting the camera reports (white balance, ISO, exposure, microphone, GPS…) can be changed, with readable names in English and Italian.",
+      "Every setting the camera reports (white balance, ISO, exposure, microphone, GPS…) can be changed, with readable names in English and Italian. Save Wi-Fi networks on the camera, or make it beep to find it.",
     f5Title: "Local and private",
     f5Text:
       "V360Lab talks only to the camera on your network over its HTTP API. No Garmin account, no cloud service, no data leaves your devices.",
@@ -70,13 +70,13 @@ window.SITE_TEXT = {
       "Un solo pulsante: prova l'ultima camera usata, poi il Wi-Fi della camera, poi cerca nella rete locale. Di solito la camera viene trovata in 2–3 secondi, e ogni passaggio è mostrato mentre avviene.",
     f2Title: "Anteprima dal vivo e scatto",
     f2Text:
-      "Guarda cosa vede la camera, passa da video a foto, scegli obiettivo 360°, anteriore, posteriore o RAW, foto singole, a raffica o a intervalli, e avvia o ferma con un grande pulsante di scatto.",
+      "Guarda cosa vede la camera e muoviti nella vista a 360° con un dito, passa da video a foto, scegli obiettivo 360°, anteriore, posteriore o RAW, foto singole, a raffica o a intervalli, e avvia o ferma con un grande pulsante di scatto.",
     f3Title: "Media e telemetria",
     f3Text:
       "Sfoglia la scheda con le miniature, scarica i media insieme alla telemetria FIT e ai metadati originali della camera, ed elimina i file con verifica.",
     f4Title: "Tutte le impostazioni",
     f4Text:
-      "Ogni impostazione riportata dalla camera (bilanciamento del bianco, ISO, esposizione, microfono, GPS…) si può modificare, con nomi leggibili in italiano e inglese.",
+      "Ogni impostazione riportata dalla camera (bilanciamento del bianco, ISO, esposizione, microfono, GPS…) si può modificare, con nomi leggibili in italiano e inglese. Salva reti Wi-Fi sulla camera, o falla suonare per ritrovarla.",
     f5Title: "Locale e privato",
     f5Text:
       "V360Lab comunica solo con la camera nella tua rete, tramite la sua API HTTP. Nessun account Garmin, nessun servizio cloud: i dati non lasciano i tuoi dispositivi.",

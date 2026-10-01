@@ -248,6 +248,35 @@ impl CameraClient for MockVirb360Client {
         models::parse_media_list(&json!({ "media": media, "result": 1 }))
     }
 
+    async fn supported_commands(&self) -> Result<Option<Vec<String>>, CameraError> {
+        self.simulate_latency().await;
+        let list: Vec<Value> = [
+            "deviceInfo",
+            "status",
+            "features",
+            "updateFeature",
+            "startRecording",
+            "stopRecording",
+            "snapPicture",
+            "stopStillRecording",
+            "mediaList",
+            "deleteFile",
+            "locate",
+            "found",
+            "networks",
+        ]
+        .iter()
+        .map(|name| json!({ "command": name }))
+        .collect();
+        models::parse_command_list(&json!({ "result": 1, "commandList": list })).map(Some)
+    }
+
+    async fn locate(&self, on: bool) -> Result<CommandAck, CameraError> {
+        self.simulate_latency().await;
+        let command = if on { "locate" } else { "found" };
+        Ok(models::command_ack(command, json!({ "result": 1 })))
+    }
+
     async fn wifi_networks(&self) -> Result<WifiNetworks, CameraError> {
         self.simulate_latency().await;
         let configured = self.with_state(|s| s.wifi_configured.clone());

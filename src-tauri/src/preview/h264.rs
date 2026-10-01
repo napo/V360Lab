@@ -32,6 +32,18 @@ pub struct Depacketizer {
     waiting_for_keyframe: bool,
     sps: Option<Vec<u8>>,
     pps: Option<Vec<u8>>,
+    stats: LossStats,
+}
+
+/// Losses since the last [`Depacketizer::take_stats`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct LossStats {
+    /// RTP packets that never arrived (from sequence number gaps).
+    pub lost_packets: u64,
+    /// Complete frames discarded while waiting for the next keyframe.
+    pub skipped_frames: u64,
+    /// Frames passed on.
+    pub frames: u64,
 }
 
 impl Depacketizer {
@@ -42,6 +54,16 @@ impl Depacketizer {
             waiting_for_keyframe: true,
             ..Self::default()
         }
+    }
+
+    /// True until the next keyframe: after a loss, or before the first one.
+    pub fn waiting_for_keyframe(&self) -> bool {
+        self.waiting_for_keyframe
+    }
+
+    /// Returns and resets the loss counters.
+    pub fn take_stats(&mut self) -> LossStats {
+        std::mem::take(&mut self.stats)
     }
 
     /// WebCodecs codec string (`avc1.PPCCLL`) from the last SPS seen.
@@ -63,6 +85,11 @@ impl Depacketizer {
         if let Some(expected) = self.expected_seq {
             if rtp.sequence != expected {
                 log::debug!("RTP loss: expected {expected}, got {}", rtp.sequence);
+                // Late or duplicate packets (small backwards jumps) are not losses.
+                let gap = rtp.sequence.wrapping_sub(expected);
+                if gap < 0x8000 {
+                    self.stats.lost_packets += u64::from(gap);
+                }
                 self.corrupted = true;
                 self.fragment = None;
             }
@@ -146,6 +173,7 @@ impl Depacketizer {
 
         if corrupted {
             self.waiting_for_keyframe = true;
+            self.stats.skipped_frames += 1;
             return None;
         }
         if nals.iter().all(|n| matches!(n.first().map(|h| h & 0x1f), Some(NAL_SPS | NAL_PPS))) {
@@ -153,6 +181,7 @@ impl Depacketizer {
         }
         if self.waiting_for_keyframe {
             if !keyframe || self.sps.is_none() || self.pps.is_none() {
+                self.stats.skipped_frames += 1;
                 return None;
             }
             self.waiting_for_keyframe = false;
@@ -171,6 +200,7 @@ impl Depacketizer {
         for nal in &nals {
             push_nal(&mut data, nal);
         }
+        self.stats.frames += 1;
         Some(AccessUnit {
             rtp_timestamp: timestamp,
             keyframe,
@@ -300,6 +330,15 @@ pub(crate) mod tests {
         // ...until the next keyframe.
         let key: Vec<_> = idr_fragments(9, 12000).iter().flat_map(|p| d.push(p)).collect();
         assert!(key[0].keyframe);
+        assert_eq!(
+            d.take_stats(),
+            LossStats {
+                lost_packets: 1,
+                skipped_frames: 2,
+                frames: 3
+            }
+        );
+        assert_eq!(d.take_stats(), LossStats::default());
     }
 
     #[test]

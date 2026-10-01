@@ -1517,6 +1517,24 @@ details.panel:not([open]) > summary {
   object-fit: contain;
 }
 
+.preview-frame canvas[hidden] {
+  display: none;
+}
+
+/* 360° view: a perspective window onto the sphere, dragged with a finger. */
+.preview-frame.sphere {
+  aspect-ratio: 16 / 9;
+}
+
+.preview-frame .sphere-canvas {
+  touch-action: none;
+  cursor: grab;
+}
+
+.preview-frame .sphere-canvas:active {
+  cursor: grabbing;
+}
+
 .preview-frame:fullscreen {
   border: none;
   border-radius: 0;

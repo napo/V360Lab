@@ -6,10 +6,13 @@ import { toAppError } from "../../utils/errors";
 import { ErrorBanner } from "../ErrorBanner";
 import { Spinner } from "../Spinner";
 import { PreviewPlayer, webCodecsAvailable } from "./PreviewPlayer";
+import { SphereViewer } from "./SphereViewer";
+import { isEquirectangular } from "./sphereView";
 
 type State = "off" | "starting" | "playing" | "reconnecting" | "error";
 
 const STORAGE_KEY = "v360lab.preview.enabled";
+const SPHERE_KEY = "v360lab.preview.sphere";
 /** Automatic reconnections after the stream stops, before giving up. */
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1500;
@@ -19,17 +22,17 @@ const RETRY_DELAY_MS = 1500;
  */
 const RESTART_AFTER_CHANGE_MS = 2000;
 
-function readEnabled(): boolean {
+function readFlag(key: string): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) !== "false";
+    return localStorage.getItem(key) !== "false";
   } catch {
     return true;
   }
 }
 
-function writeEnabled(enabled: boolean) {
+function writeFlag(key: string, value: boolean) {
   try {
-    localStorage.setItem(STORAGE_KEY, String(enabled));
+    localStorage.setItem(key, String(value));
   } catch {
     // Preference only.
   }
@@ -42,16 +45,23 @@ function writeEnabled(enabled: boolean) {
 interface LivePreviewProps {
   /** Changes whenever a setting that restarts the camera's stream changes. */
   restartKey?: string;
+  /** The camera films 360°: the preview is then an equirectangular image. */
+  spherical?: boolean;
 }
 
-export function LivePreview({ restartKey }: LivePreviewProps) {
+export function LivePreview({ restartKey, spherical = false }: LivePreviewProps) {
   const { t } = useI18n();
   const supported = webCodecsAvailable();
-  const [enabled, setEnabled] = useState(readEnabled);
+  const [enabled, setEnabled] = useState(() => readFlag(STORAGE_KEY));
+  const [sphereWanted, setSphereWanted] = useState(() => readFlag(SPHERE_KEY));
+  const [sphereFailed, setSphereFailed] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+  const [decodeCanvas, setDecodeCanvas] = useState<HTMLCanvasElement | null>(null);
+  const frameListeners = useRef(new Set<() => void>());
   const [state, setState] = useState<State>("off");
   const [error, setError] = useState<AppError | null>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   // Each start gets a new generation; messages of older ones are ignored.
   const generation = useRef(0);
@@ -84,6 +94,7 @@ export function LivePreview({ restartKey }: LivePreviewProps) {
           setSize({ width, height });
           setState("playing");
         },
+        onFrame: () => frameListeners.current.forEach((listener) => listener()),
         onDecodeError: (message) => console.warn("Live preview decode error:", message),
       });
       player.current = instance;
@@ -149,9 +160,33 @@ export function LivePreview({ restartKey }: LivePreviewProps) {
     retryTimer.current = window.setTimeout(() => void start(true), RESTART_AFTER_CHANGE_MS);
   }, [restartKey, supported, enabled, start]);
 
+  const subscribeFrames = useCallback((listener: () => void) => {
+    frameListeners.current.add(listener);
+    return () => {
+      frameListeners.current.delete(listener);
+    };
+  }, []);
+  const sphereUnavailable = useCallback(() => setSphereFailed(true), []);
+  const decodeCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+    canvasRef.current = canvas;
+    setDecodeCanvas(canvas);
+  }, []);
+
+  // The camera sends a 2:1 equirectangular image in 360° mode; anything else
+  // (single lens, RAW) is shown as it is.
+  const sphereAvailable =
+    spherical && !sphereFailed && size !== null && isEquirectangular(size.width, size.height);
+  const sphere = sphereAvailable && sphereWanted;
+
+  const toggleSphere = () => {
+    const next = !sphereWanted;
+    writeFlag(SPHERE_KEY, next);
+    setSphereWanted(next);
+  };
+
   const toggle = () => {
     const next = !enabled;
-    writeEnabled(next);
+    writeFlag(STORAGE_KEY, next);
     setEnabled(next);
     if (!next) setState("off");
   };
@@ -172,11 +207,19 @@ export function LivePreview({ restartKey }: LivePreviewProps) {
       {enabled && (
         <div
           ref={frameRef}
-          className={`preview-frame ${state}`}
-          style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined}
-          onDoubleClick={fullscreen}
+          className={`preview-frame ${state} ${sphere ? "sphere" : ""}`}
+          style={size && !sphere ? { aspectRatio: `${size.width} / ${size.height}` } : undefined}
+          onDoubleClick={sphere ? undefined : fullscreen}
         >
-          <canvas ref={canvasRef} />
+          <canvas ref={decodeCanvasRef} hidden={sphere} />
+          {sphere && (
+            <SphereViewer
+              source={decodeCanvas}
+              onFrame={subscribeFrames}
+              onUnavailable={sphereUnavailable}
+              resetKey={resetKey}
+            />
+          )}
           {state === "playing" && <span className="preview-live">{t("preview.live")}</span>}
           {(state === "starting" || state === "reconnecting") && (
             <div className="preview-overlay">
@@ -197,12 +240,25 @@ export function LivePreview({ restartKey }: LivePreviewProps) {
         <button type="button" className="btn btn-small btn-ghost" onClick={toggle}>
           {enabled ? t("preview.hide") : t("preview.show")}
         </button>
+        {enabled && state === "playing" && sphereAvailable && (
+          <button type="button" className="btn btn-small btn-ghost" onClick={toggleSphere}>
+            {sphere ? t("preview.flatView") : t("preview.sphereView")}
+          </button>
+        )}
+        {enabled && state === "playing" && sphere && (
+          <button type="button" className="btn btn-small btn-ghost" onClick={() => setResetKey((k) => k + 1)}>
+            {t("preview.lookAhead")}
+          </button>
+        )}
         {enabled && state === "playing" && (
           <button type="button" className="btn btn-small btn-ghost" onClick={fullscreen}>
             {t("preview.fullscreen")}
           </button>
         )}
       </div>
+      {enabled && state === "playing" && sphere && (
+        <p className="preview-note muted small">{t("preview.sphereHint")}</p>
+      )}
       {error && <ErrorBanner error={error} title={t("preview.failed")} />}
     </section>
   );

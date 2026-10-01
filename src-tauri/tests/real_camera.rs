@@ -59,6 +59,9 @@ async fn read_only_commands() {
     let features = camera.features().await.expect("features");
     println!("features: {}", features.features.len());
 
+    let commands = camera.supported_commands().await.expect("commandList");
+    println!("supported commands: {commands:?}");
+
     let media = camera.media_list().await.expect("mediaList");
     let videos = media
         .iter()

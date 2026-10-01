@@ -3,8 +3,12 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
-## Unreleased
+## 0.3.0
 
+- **Interactive 360° preview**: with the 360° lens, the live preview shows a perspective view of the sphere, as Garmin's app does: drag to look around, pinch or scroll to zoom, "Look ahead" to recenter. The flat (equirectangular) image is one tap away. Not yet tested on a real camera.
+- **Smoother live preview**: the video packets are now read by a dedicated task with a larger receive buffer, and the decoder tolerates a longer queue. Before, lost packets froze the image until the next keyframe, which made the 360° preview look stroboscopic. Losses are logged every 10 seconds. When the image is waiting for a keyframe, the app asks the camera for one at once (`enableIDR`).
+- **Find the camera** (Advanced → Device): make the camera beep and blink until you find it (`locate` / `found`).
+- **Supported commands**: the app reads the camera's `commandList`, shows it under Advanced → Device, and hides the Wi-Fi tab when the camera does not list `networks`.
 - **Camera Wi-Fi** (Advanced → Wi-Fi): save a network on the camera, choosing it from the networks the camera sees or typing its name, remove saved networks, and make the camera join one, as in Garmin's VIRB app. Network names and passwords are checked before they are sent. Not yet tested on a real camera.
 
 ## 0.2.0

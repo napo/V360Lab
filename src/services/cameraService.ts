@@ -46,6 +46,8 @@ export const cameraService = {
   deleteMedia: (items: MediaItem[], activityId: string) =>
     call<DeleteReport>("delete_media", { items, activityId }),
   thumbnail: (url: string) => call<string>("fetch_thumbnail", { url }),
+  supportedCommands: shared(() => call<string[] | null>("get_supported_commands")),
+  locate: (on: boolean) => call<CommandAck>("locate_camera", { on }),
   wifiNetworks: shared(() => call<WifiNetworks>("get_wifi_networks")),
   addWifiNetwork: (ssid: string, security: WifiSecurity, password: string) =>
     call<CommandAck>("add_wifi_network", { ssid, security, password }),

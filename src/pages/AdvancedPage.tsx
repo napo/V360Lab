@@ -24,7 +24,7 @@ const TABS: Array<{ id: Tab; label: TranslationKey; needsCamera: boolean }> = [
 /** Everything that is not needed to capture: camera settings, device
  * details, app settings and information. */
 export function AdvancedPage({ navigate }: { navigate: Navigate }) {
-  const { connection } = useCamera();
+  const { connection, supports } = useCamera();
   const { t } = useI18n();
   const connected = connection.status === "connected";
   const [tab, setTab] = useState<Tab>(connected ? "camera" : "app");
@@ -35,7 +35,7 @@ export function AdvancedPage({ navigate }: { navigate: Navigate }) {
     <div className="page advanced-page">
       <h1>{t("advanced.title")}</h1>
       <div className="tabs" role="tablist">
-        {TABS.map((entry) => (
+        {TABS.filter((entry) => entry.id !== "wifi" || supports("networks")).map((entry) => (
           <button
             key={entry.id}
             type="button"

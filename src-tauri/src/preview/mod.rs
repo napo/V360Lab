@@ -15,10 +15,12 @@
 pub mod h264;
 pub mod rtsp;
 
+use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::net::UdpSocket;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep, Instant};
 
@@ -32,6 +34,15 @@ const FIRST_PACKET_TIMEOUT: Duration = Duration::from_secs(6);
 const STALL_TIMEOUT: Duration = Duration::from_secs(5);
 const DEFAULT_KEEP_ALIVE: Duration = Duration::from_secs(20);
 const TEARDOWN_TIMEOUT: Duration = Duration::from_secs(1);
+/// Kernel receive buffer requested for RTP. A 360° keyframe arrives as a
+/// burst of hundreds of packets; the default buffer (about 200 KB on Linux)
+/// can overflow, and every lost packet freezes the image until the next
+/// keyframe. The system may grant less (Linux caps it at `rmem_max`).
+const RTP_RECEIVE_BUFFER: usize = 4 * 1024 * 1024;
+/// Packets buffered between the socket reader and the depacketizer.
+const PACKET_QUEUE: usize = 4096;
+/// How often losses are logged.
+const STATS_INTERVAL: Duration = Duration::from_secs(10);
 
 pub const MSG_CONFIG: u8 = 0;
 pub const MSG_FRAME: u8 = 1;
@@ -39,6 +50,12 @@ pub const MSG_ENDED: u8 = 2;
 
 /// Receives preview messages; returns `false` when nobody listens anymore.
 pub type Sink = Box<dyn Fn(Vec<u8>) -> bool + Send + Sync>;
+
+/// Asks the camera for a keyframe (VIRB `enableIDR`). Must not block.
+pub type KeyframeRequest = Box<dyn Fn() + Send + Sync>;
+
+/// Minimum time between two keyframe requests.
+const KEYFRAME_REQUEST_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Why a preview could not start or stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,7 +99,7 @@ impl From<RtspError> for AppError {
 /// An RTSP session that is playing, ready to receive video.
 struct Session {
     rtsp: RtspClient,
-    socket: UdpSocket,
+    socket: Arc<UdpSocket>,
     depacketizer: Depacketizer,
     keep_alive: Duration,
 }
@@ -91,9 +108,8 @@ impl Session {
     async fn open(url: &str) -> Result<Self, AppError> {
         let mut rtsp = RtspClient::connect(url).await?;
         let track = rtsp.describe().await?;
-        let socket = bind_rtp_socket()
-            .await
-            .map_err(|e| AppError::preview(PreviewFailure::Negotiation, e))?;
+        let socket =
+            bind_rtp_socket().map_err(|e| AppError::preview(PreviewFailure::Negotiation, e))?;
         let port = socket
             .local_addr()
             .map_err(|e| AppError::preview(PreviewFailure::Negotiation, e))?
@@ -118,7 +134,7 @@ impl Session {
         );
         Ok(Self {
             rtsp,
-            socket,
+            socket: Arc::new(socket),
             depacketizer: Depacketizer::new(track.payload_type),
             keep_alive,
         })
@@ -126,23 +142,46 @@ impl Session {
 
     /// Forwards video to `sink` until stopped, the sink goes away, or the
     /// stream fails.
-    async fn run(&mut self, sink: &Sink, mut stop: oneshot::Receiver<()>) -> Result<(), AppError> {
-        let mut buffer = vec![0u8; 65_536];
+    async fn run(
+        &mut self,
+        sink: &Sink,
+        request_keyframe: &KeyframeRequest,
+        mut stop: oneshot::Receiver<()>,
+    ) -> Result<(), AppError> {
+        // The socket is drained by its own task, so that sending frames to
+        // the UI or waiting for an RTSP keep-alive answer never leaves
+        // packets waiting in the kernel buffer.
+        let (packet_tx, mut packets) = mpsc::channel::<std::io::Result<Vec<u8>>>(PACKET_QUEUE);
+        let _reader = AbortOnDrop(tokio::spawn(read_packets(self.socket.clone(), packet_tx)));
         let mut keep_alive = interval(self.keep_alive);
         keep_alive.tick().await;
         let started = Instant::now();
         let mut last_packet: Option<Instant> = None;
         let mut codec: Option<String> = None;
         let mut watchdog = interval(Duration::from_secs(1));
+        let mut stats = interval(STATS_INTERVAL);
+        stats.tick().await;
+        let mut keyframe_requested: Option<Instant> = None;
 
         loop {
             tokio::select! {
                 _ = &mut stop => return Ok(()),
-                received = self.socket.recv_from(&mut buffer) => {
-                    let (len, _) = received
+                received = packets.recv() => {
+                    let packet = received
+                        .unwrap_or_else(|| Err(std::io::Error::other("RTP reader stopped")))
                         .map_err(|e| AppError::preview(PreviewFailure::Stalled, e))?;
                     last_packet = Some(Instant::now());
-                    for unit in self.depacketizer.push(&buffer[..len]) {
+                    let units = self.depacketizer.push(&packet);
+                    // Without a keyframe the image stays frozen: ask for
+                    // one instead of waiting for the camera's next one.
+                    if self.depacketizer.waiting_for_keyframe()
+                        && keyframe_requested
+                            .is_none_or(|at| at.elapsed() >= KEYFRAME_REQUEST_INTERVAL)
+                    {
+                        keyframe_requested = Some(Instant::now());
+                        request_keyframe();
+                    }
+                    for unit in units {
                         let current = self.depacketizer.codec();
                         if current.is_some() && current != codec {
                             codec = current;
@@ -164,6 +203,7 @@ impl Session {
                         }
                     }
                 }
+                _ = stats.tick() => log_stats(&mut self.depacketizer),
                 _ = keep_alive.tick() => {
                     if let Err(e) = self.rtsp.keep_alive().await {
                         log::warn!("Live preview keep-alive failed: {e}");
@@ -191,6 +231,7 @@ impl Session {
     }
 
     async fn close(mut self) {
+        log_stats(&mut self.depacketizer);
         let _ = tokio::time::timeout(TEARDOWN_TIMEOUT, self.rtsp.teardown()).await;
     }
 }
@@ -202,20 +243,75 @@ fn message(kind: u8, payload: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Binds an even local port (RTP convention; RTCP is on the next one).
-async fn bind_rtp_socket() -> std::io::Result<UdpSocket> {
+/// Reads RTP packets until the receiver goes away or the socket fails.
+async fn read_packets(socket: Arc<UdpSocket>, packets: mpsc::Sender<std::io::Result<Vec<u8>>>) {
+    let mut buffer = vec![0u8; 65_536];
+    loop {
+        let received = socket.recv_from(&mut buffer).await;
+        let failed = received.is_err();
+        let packet = received.map(|(len, _)| buffer[..len].to_vec());
+        if packets.send(packet).await.is_err() || failed {
+            return;
+        }
+    }
+}
+
+struct AbortOnDrop(JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+fn log_stats(depacketizer: &mut Depacketizer) {
+    let stats = depacketizer.take_stats();
+    if stats.lost_packets > 0 || stats.skipped_frames > 0 {
+        log::info!(
+            "Live preview: {} frames shown, {} skipped waiting for a keyframe, {} RTP packets lost",
+            stats.frames,
+            stats.skipped_frames,
+            stats.lost_packets
+        );
+    } else if stats.frames > 0 {
+        log::debug!("Live preview: {} frames, no losses", stats.frames);
+    }
+}
+
+/// Binds an even local port (RTP convention; RTCP is on the next one) with
+/// a large receive buffer.
+fn bind_rtp_socket() -> std::io::Result<UdpSocket> {
     let mut fallback = None;
     for _ in 0..8 {
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
-        if socket.local_addr()?.port() % 2 == 0 {
-            return Ok(socket);
+        let socket = new_rtp_socket()?;
+        if socket.local_addr()?.as_socket().map(|a| a.port() % 2 == 0) == Some(true) {
+            return into_tokio(socket);
         }
         fallback.get_or_insert(socket);
     }
     match fallback {
-        Some(socket) => Ok(socket),
-        None => UdpSocket::bind("0.0.0.0:0").await,
+        Some(socket) => into_tokio(socket),
+        None => into_tokio(new_rtp_socket()?),
     }
+}
+
+fn new_rtp_socket() -> std::io::Result<socket2::Socket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
+    if let Err(e) = socket.set_recv_buffer_size(RTP_RECEIVE_BUFFER) {
+        log::debug!("Could not enlarge the RTP receive buffer: {e}");
+    }
+    socket.bind(&SocketAddr::from(([0, 0, 0, 0], 0)).into())?;
+    Ok(socket)
+}
+
+fn into_tokio(socket: socket2::Socket) -> std::io::Result<UdpSocket> {
+    match socket.recv_buffer_size() {
+        Ok(size) => log::debug!("RTP receive buffer: {size} bytes"),
+        Err(e) => log::debug!("RTP receive buffer size unknown: {e}"),
+    }
+    socket.set_nonblocking(true)?;
+    UdpSocket::from_std(socket.into())
 }
 
 struct Running {
@@ -232,7 +328,12 @@ pub struct PreviewManager {
 impl PreviewManager {
     /// Opens the stream (errors are returned here), then forwards video to
     /// `sink` in the background. Replaces any running preview.
-    pub async fn start(&self, url: &str, sink: Sink) -> Result<(), AppError> {
+    pub async fn start(
+        &self,
+        url: &str,
+        sink: Sink,
+        request_keyframe: KeyframeRequest,
+    ) -> Result<(), AppError> {
         let mut running = self.running.lock().await;
         if let Some(previous) = running.take() {
             stop_running(previous).await;
@@ -242,7 +343,7 @@ impl PreviewManager {
         let mut session = Session::open(url).await?;
         let (stop_tx, stop_rx) = oneshot::channel();
         let task = tokio::spawn(async move {
-            let result = session.run(&sink, stop_rx).await;
+            let result = session.run(&sink, &request_keyframe, stop_rx).await;
             session.close().await;
             let ended = match &result {
                 Ok(()) => "null".to_string(),
@@ -358,8 +459,14 @@ mod tests {
             true
         });
 
+        let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = requests.clone();
+        let request_keyframe: KeyframeRequest = Box::new(move || {
+            counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        });
+
         let manager = PreviewManager::default();
-        manager.start(&url, sink).await.unwrap();
+        manager.start(&url, sink, request_keyframe).await.unwrap();
         for _ in 0..50 {
             if messages.lock().unwrap().len() >= 2 {
                 break;
@@ -376,5 +483,7 @@ mod tests {
         assert_eq!(&messages[1][6..10], &[0, 0, 0, 1]);
         let last = messages.last().unwrap();
         assert_eq!(last, &message(MSG_ENDED, b"null"));
+        // Waiting for the first keyframe: one request, not one per packet.
+        assert_eq!(requests.load(std::sync::atomic::Ordering::Relaxed), 1);
     }
 }
