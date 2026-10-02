@@ -151,7 +151,7 @@ The Java side has Garmin MAC OUI ranges (`00:05:4f`, `10:4e:89`, `10:c6:fc`,
 (form-urlencoded) are used to post camera error logs and to check for firmware
 updates.
 
-## Differences from V360Lab (0.4.0)
+## Differences from V360Lab (0.5.0)
 
 - `livePreview`: V360Lab sends `streamType: "rtp"` (required on firmware
   4.20) but not `maxResolutionVertical` and `liveStreamActive`.

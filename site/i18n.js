@@ -24,7 +24,7 @@ window.SITE_TEXT = {
       "See what the camera sees and look around the 360° view with your finger, switch between video and photo, choose 360°, front, rear or RAW lens mode, single, burst or interval photos, and start or stop with one big shutter button.",
     f3Title: "Media and telemetry",
     f3Text:
-      "Browse the card with thumbnails, play videos and open photos (also in 360°), see the GPS track, speed and altitude from the FIT telemetry in sync with the video, export it as GPX or GeoJSON, extract georeferenced 360° frames, download media with their telemetry and metadata, and delete files with verification.",
+      "Browse the card with thumbnails, play videos and open photos (also in 360°), see the GPS track, speed and altitude from the FIT telemetry in sync with the video, export it as GPX or GeoJSON, extract georeferenced 360° frames and find objects in them with YOLO, download media with their telemetry and metadata, and delete files with verification.",
     f4Title: "All camera settings",
     f4Text:
       "Every setting the camera reports (white balance, ISO, exposure, microphone, GPS…) can be changed, with readable names in English and Italian. Save Wi-Fi networks on the camera, or make it beep to find it.",
@@ -42,7 +42,7 @@ window.SITE_TEXT = {
     roadmapTitle: "Roadmap",
     r1: "<strong>Camera toolkit</strong> — connection, live preview, capture control, media browser, media and FIT download",
     r2: "<strong>Telemetry</strong> — FIT parsing, timeline, GPS track, synchronized video and map (started: track, speed and altitude in sync with the video)",
-    r3: "<strong>Computer vision</strong> — frame extraction (started: georeferenced 360° frames), OpenCV, YOLO detection, SAM segmentation",
+    r3: "<strong>Computer vision</strong> — frame extraction and YOLO detection (started: georeferenced 360° frames, objects with their bearing), OpenCV, SAM segmentation",
     r4: "<strong>Geospatial outputs</strong> — georeferenced detections, GeoJSON / GeoParquet, MapLibre",
     r5: "<strong>3D</strong> — depth estimation, photogrammetry, SfM, point clouds",
     disclaimer:
@@ -75,7 +75,7 @@ window.SITE_TEXT = {
       "Guarda cosa vede la camera e muoviti nella vista a 360° con un dito, passa da video a foto, scegli obiettivo 360°, anteriore, posteriore o RAW, foto singole, a raffica o a intervalli, e avvia o ferma con un grande pulsante di scatto.",
     f3Title: "Media e telemetria",
     f3Text:
-      "Sfoglia la scheda con le miniature, riproduci i video e apri le foto (anche a 360°), guarda traccia GPS, velocità e altitudine della telemetria FIT sincronizzate con il video, esportala in GPX o GeoJSON, estrai fotogrammi 360° georeferenziati, scarica i media con telemetria e metadati, ed elimina i file con verifica.",
+      "Sfoglia la scheda con le miniature, riproduci i video e apri le foto (anche a 360°), guarda traccia GPS, velocità e altitudine della telemetria FIT sincronizzate con il video, esportala in GPX o GeoJSON, estrai fotogrammi 360° georeferenziati e riconosci gli oggetti con YOLO, scarica i media con telemetria e metadati, ed elimina i file con verifica.",
     f4Title: "Tutte le impostazioni",
     f4Text:
       "Ogni impostazione riportata dalla camera (bilanciamento del bianco, ISO, esposizione, microfono, GPS…) si può modificare, con nomi leggibili in italiano e inglese. Salva reti Wi-Fi sulla camera, o falla suonare per ritrovarla.",
@@ -93,7 +93,7 @@ window.SITE_TEXT = {
     roadmapTitle: "Roadmap",
     r1: "<strong>Toolkit per la camera</strong> — connessione, anteprima dal vivo, controllo dello scatto, libreria media, download di media e FIT",
     r2: "<strong>Telemetria</strong> — lettura dei FIT, timeline, traccia GPS, video e mappa sincronizzati (iniziata: traccia, velocità e altitudine sincronizzate con il video)",
-    r3: "<strong>Computer vision</strong> — estrazione dei fotogrammi (iniziata: fotogrammi 360° georeferenziati), OpenCV, rilevamento con YOLO, segmentazione con SAM",
+    r3: "<strong>Computer vision</strong> — estrazione dei fotogrammi e rilevamento con YOLO (iniziati: fotogrammi 360° georeferenziati, oggetti con la loro direzione), OpenCV, segmentazione con SAM",
     r4: "<strong>Dati geospaziali</strong> — rilevamenti georeferenziati, GeoJSON / GeoParquet, MapLibre",
     r5: "<strong>3D</strong> — stima della profondità, fotogrammetria, SfM, nuvole di punti",
     disclaimer:

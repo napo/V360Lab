@@ -3,7 +3,7 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
-## Unreleased
+## 0.5.0
 
 - **Object detection (YOLO)**: find people, vehicles, traffic lights and other objects in the extracted frames with any Ultralytics YOLOv8/YOLO11 model exported to ONNX, run on the device (tract, pure Rust). 360° frames are split into perspective views, each object gets its direction and compass bearing, and the results are saved as `detections.geojson`. Progress, cancel and a count per class in the media viewer.
 - **Horizon levelling (experimental)**: the FIT accelerometer is decoded (with the camera's calibration) and used to straighten 360° images: a "Level horizon" switch in the 360° video view and in the frame extraction, and the camera's roll and pitch in the telemetry panel. Which sensor axis points forward still has to be confirmed on a real camera (see the README).
