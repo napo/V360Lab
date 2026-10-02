@@ -3,7 +3,7 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
-## Unreleased
+## 0.5.2
 
 - **Updates from the app**: at start-up V360Lab checks GitHub for a newer release (at most every six hours; can be turned off, and "Check now" in Settings → Updates) and shows what's new. After confirmation, Windows and Linux AppImage download the signed update, verify it, install it and restart; Android downloads the APK and Android asks to install it; .deb and .rpm installations open the download page. "Later" and "Skip this version" are available. This is the first version able to update itself: earlier ones must be updated by hand.
 
