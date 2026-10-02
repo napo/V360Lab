@@ -211,6 +211,7 @@ Everything is built by GitHub Actions (`.github/workflows/`):
 | `ci.yml` | every push to `main` and every pull request | typecheck, frontend tests, clippy, Rust tests |
 | `release.yml` | a pushed tag `v*` (or run manually) | GitHub release with Windows (`.msi`, `-setup.exe`), Linux (`.AppImage`, `.deb`, `.rpm`) and a signed Android APK |
 | `pages.yml` | changes in `site/` on `main` | the project website on GitHub Pages |
+| `test-build.yml` | run manually from the Actions tab, on any branch | a signed Android APK attached to the run as an artifact (14 days), to try changes on a phone without a release |
 
 To publish a new version, bump `version` in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (`node scripts/check-version.mjs` verifies they match; the release workflow also checks them against the tag), add a `## x.y.z` section to `CHANGELOG.md` (it becomes the release notes), commit, then:
 
