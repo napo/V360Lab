@@ -3,7 +3,7 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
-## Unreleased
+## 0.5.1
 
 - **Download the detection model from the app**: Advanced → App (and the object detection panel when no model is set) offers the recommended YOLO11n model (10.7 MB). The app checks the size and the free space, asks for confirmation reminding to use a Wi-Fi with internet (not the camera's) and warning on mobile data, shows the progress, verifies the SHA-256 and selects the model. No need to know where to put the file; a custom ONNX model can still be chosen.
 - **Speed test and time estimates for object detection**: "Test the speed" runs the model on the device and tells how long a 360° frame takes (and 100 frames), with a warning on slow devices; the progress shows the time left, estimated from the speed test before the first frame and from the frames done afterwards.
