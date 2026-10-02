@@ -56,6 +56,46 @@ pub struct DetectionProgress {
     pub detections: usize,
 }
 
+/// How fast this device runs a model.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Benchmark {
+    /// Time to load and prepare the model.
+    pub load_ms: u64,
+    /// One image (one view), median of a few runs.
+    pub view_ms: u64,
+    /// Views per 360° frame.
+    pub views_per_frame: u32,
+    /// Estimated time per 360° frame (views, plus re-projection).
+    pub frame_ms: u64,
+}
+
+/// Measures the model on a blank image: a warm-up run, then the median
+/// of three. Blocking: run it off the async runtime.
+pub fn benchmark(model: &Path) -> Result<Benchmark, DetectError> {
+    let started = std::time::Instant::now();
+    let detector = Detector::load(model)?;
+    let load_ms = started.elapsed().as_millis() as u64;
+    let image = RgbImage::from_pixel(detector.input_size, detector.input_size, image::Rgb([114, 114, 114]));
+    detector.detect(&image, 0.5)?;
+    let mut runs: Vec<u64> = (0..3)
+        .map(|_| {
+            let started = std::time::Instant::now();
+            detector.detect(&image, 0.5).map(|_| started.elapsed().as_millis() as u64)
+        })
+        .collect::<Result<_, _>>()?;
+    runs.sort_unstable();
+    let view_ms = runs[1];
+    let views_per_frame = views::horizontal_views(detector.input_size).len() as u32;
+    Ok(Benchmark {
+        load_ms,
+        view_ms,
+        views_per_frame,
+        // Decoding the JPEG and drawing the views adds about 10%.
+        frame_ms: view_ms * u64::from(views_per_frame) * 11 / 10,
+    })
+}
+
 /// Result of a detection run over a video's frames.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -89,6 +129,12 @@ pub fn detect_video_frames(
         return Err(DetectError::NoFrames);
     }
     let detector = Detector::load(model)?;
+    // The UI learns the number of frames before the first one is done.
+    progress(DetectionProgress {
+        done: 0,
+        total: frames.len(),
+        detections: 0,
+    });
     let mut detections = Vec::new();
     let mut done = 0;
     for frame in &frames {
@@ -426,5 +472,16 @@ mod tests {
         assert!((azimuth - 100.0).abs() < 10.0, "azimuth {azimuth}");
         assert_eq!(report.frames, 1);
         assert!(!report.cancelled);
+    }
+
+    /// `V360LAB_YOLO_MODEL=yolo11n.onnx cargo test detect::tests::benchmarks_a_real_model -- --ignored --nocapture`
+    #[test]
+    #[ignore = "needs a YOLO ONNX model (V360LAB_YOLO_MODEL)"]
+    fn benchmarks_a_real_model() {
+        let model = std::env::var("V360LAB_YOLO_MODEL").expect("V360LAB_YOLO_MODEL");
+        let result = benchmark(Path::new(&model)).unwrap();
+        println!("{result:?}");
+        assert!(result.view_ms > 0);
+        assert_eq!(result.views_per_frame, 8);
     }
 }

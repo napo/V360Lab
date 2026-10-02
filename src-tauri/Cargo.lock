@@ -1101,6 +1101,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs4"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8640e34b88f7652208ce9e88b1a37a2ae95227d84abec377ccd3c5cfeb141ed4"
+dependencies = [
+ "rustix",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4868,6 +4878,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "env_logger",
+ "fs4",
  "futures-util",
  "if-addrs",
  "image",
@@ -4876,6 +4887,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2",
  "socket2",
  "tauri",
  "tauri-build",

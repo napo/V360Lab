@@ -2177,3 +2177,21 @@ details.panel:not([open]) > summary {
   padding: 0;
   margin: 6px 0 0;
 }
+
+/* Detection model download */
+
+.model-manager {
+  display: grid;
+  gap: 8px;
+}
+
+.model-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.warning-text {
+  color: var(--warning);
+}

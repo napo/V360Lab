@@ -35,6 +35,8 @@ if-addrs = "0.15.0"
 socket2 = "0.6"
 percent-encoding = "2"
 tract-onnx = "0.23"
+sha2 = "0.10"
+fs4 = "0.13"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [dev-dependencies]

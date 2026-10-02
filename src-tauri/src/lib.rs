@@ -15,6 +15,7 @@ pub mod error;
 pub mod geotag;
 pub mod library;
 pub mod media_protocol;
+pub mod models;
 pub mod preview;
 pub mod settings;
 pub mod state;
@@ -81,7 +82,8 @@ pub fn run() {
                 env!("CARGO_PKG_VERSION"),
                 settings_path.display()
             );
-            app.manage(AppState::new(settings, download_root));
+            let models_dir = paths.app_data_dir()?.join("models");
+            app.manage(AppState::new(settings, download_root, models_dir));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -123,6 +125,10 @@ pub fn run() {
             commands::write_frames_index,
             commands::detect_objects,
             commands::cancel_detection,
+            commands::benchmark_detection,
+            commands::list_models,
+            commands::check_model_download,
+            commands::download_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running V360Lab");

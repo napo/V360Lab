@@ -2,11 +2,18 @@ import { useState } from "react";
 import { useI18n } from "../../hooks/useI18n";
 import { useSettings } from "../../hooks/useSettings";
 import { cameraService } from "../../services/cameraService";
-import { settingsService } from "../../services/settingsService";
-import type { DetectionProgress, DetectionReport, MediaItem } from "../../types/camera";
+import type { DetectionBenchmark, DetectionProgress, DetectionReport, MediaItem } from "../../types/camera";
 import type { AppError } from "../../types/errors";
 import { toAppError } from "../../utils/errors";
+import { formatDurationRough, remainingMs } from "../../utils/eta";
+
+/** Above this, detection on this device takes too long to be practical. */
+const SLOW_FRAME_MS = 30_000;
+
+// Measured once per session: the result does not change.
+let cachedBenchmark: { model: string; result: DetectionBenchmark } | null = null;
 import { ErrorBanner } from "../ErrorBanner";
+import { ModelManager } from "../ModelManager";
 
 /**
  * Object detection (YOLO, ONNX) on the frames extracted from a video:
@@ -15,27 +22,47 @@ import { ErrorBanner } from "../ErrorBanner";
  */
 export function ObjectDetector({ item }: { item: MediaItem }) {
   const { t } = useI18n();
-  const { view, save } = useSettings();
+  const { view } = useSettings();
+  const [showModels, setShowModels] = useState(false);
   const model = view?.settings.detectionModel ?? null;
   const [confidence, setConfidence] = useState(0.4);
   const [progress, setProgress] = useState<DetectionProgress | null>(null);
   const [report, setReport] = useState<DetectionReport | null>(null);
   const [error, setError] = useState<AppError | null>(null);
   const running = progress !== null;
+  const [benchmark, setBenchmark] = useState<DetectionBenchmark | null>(
+    cachedBenchmark && cachedBenchmark.model === model ? cachedBenchmark.result : null,
+  );
+  const [measuring, setMeasuring] = useState(false);
+  const [startedAt, setStartedAt] = useState(0);
 
-  const chooseModel = async () => {
+  const measure = async () => {
+    setError(null);
+    setMeasuring(true);
     try {
-      const path = await settingsService.pickModel(t("detect.chooseModel"));
-      if (path && view) await save({ ...view.settings, detectionModel: path });
+      const result = await cameraService.benchmarkDetection();
+      if (model) cachedBenchmark = { model, result };
+      setBenchmark(result);
     } catch (e) {
       setError(toAppError(e));
+    } finally {
+      setMeasuring(false);
     }
   };
+
+  // Before the first frame: the measured speed times the number of frames;
+  // afterwards: the time actually spent per frame.
+  const remaining =
+    progress && progress.total > 0
+      ? (remainingMs(Date.now() - startedAt, progress.done, progress.total) ??
+        (benchmark ? benchmark.frameMs * progress.total : null))
+      : null;
 
   const run = async () => {
     setError(null);
     setReport(null);
     setProgress({ done: 0, total: 0, detections: 0 });
+    setStartedAt(Date.now());
     try {
       setReport(await cameraService.detectObjects(item, confidence, setProgress));
     } catch (e) {
@@ -51,14 +78,45 @@ export function ObjectDetector({ item }: { item: MediaItem }) {
     <section className="object-detector" aria-label={t("detect.title")}>
       <h3>{t("detect.title")}</h3>
       <p className="muted small">{t("detect.intro")}</p>
-      <div className="frame-options">
-        <span className="small">
-          {t("detect.model")}: <span className="mono">{modelName ?? t("detect.noModel")}</span>
-        </span>
-        <button type="button" className="btn btn-small btn-ghost" disabled={running} onClick={() => void chooseModel()}>
-          {model ? t("detect.changeModel") : t("detect.chooseModel")}
-        </button>
-      </div>
+      {model ? (
+        <div className="frame-options">
+          <span className="small">
+            {t("detect.model")}: <span className="mono">{modelName}</span>
+          </span>
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            disabled={running}
+            onClick={() => setShowModels(!showModels)}
+          >
+            {t("detect.changeModel")}
+          </button>
+        </div>
+      ) : (
+        <p className="small">{t("detect.needModel")}</p>
+      )}
+      {(!model || showModels) && <ModelManager />}
+      {model && (
+        <div className="frame-options">
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            disabled={running || measuring}
+            onClick={() => void measure()}
+          >
+            {measuring ? t("detect.measuring") : t("detect.measure")}
+          </button>
+          {benchmark && (
+            <span className="small">
+              {t("detect.speed", {
+                frame: formatDurationRough(benchmark.frameMs),
+                hundred: formatDurationRough(benchmark.frameMs * 100),
+              })}
+            </span>
+          )}
+        </div>
+      )}
+      {benchmark && benchmark.frameMs > SLOW_FRAME_MS && <p className="small warning-text">{t("detect.slow")}</p>}
       <div className="frame-options">
         <label className="small">
           {t("detect.confidence", { value: Math.round(confidence * 100) })}
@@ -87,6 +145,7 @@ export function ObjectDetector({ item }: { item: MediaItem }) {
           <progress value={progress.done} max={progress.total || 1} />
           <span className="mono small">
             {progress.done} / {progress.total || "…"} · {t("detect.found", { count: progress.detections })}
+            {remaining !== null && ` · ${t("detect.remaining", { time: formatDurationRough(remaining) })}`}
           </span>
         </div>
       )}

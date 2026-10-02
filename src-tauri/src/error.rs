@@ -63,6 +63,14 @@ pub enum AppError {
     #[error("{0}")]
     Detection(#[from] crate::detect::DetectError),
 
+    /// A detection model could not be downloaded. `reason` is a stable code
+    /// the UI translates (`network`, `sizeMismatch`, `checksum`, `noSpace`).
+    #[error("Could not download the model: {detail}")]
+    ModelDownload {
+        reason: &'static str,
+        detail: String,
+    },
+
     /// A FIT file that could not be decoded.
     #[error("Could not read the telemetry: {detail}")]
     Telemetry { detail: String },
@@ -113,6 +121,7 @@ impl AppError {
             Self::Preview { .. } => "preview",
             Self::Wifi { .. } => "wifi",
             Self::Telemetry { .. } => "telemetry",
+            Self::ModelDownload { .. } => "modelDownload",
             Self::Detection(e) => match e {
                 crate::detect::DetectError::NoFrames => "detectionNoFrames",
                 crate::detect::DetectError::Model(_) => "detectionModel",
@@ -139,7 +148,9 @@ impl AppError {
             Self::Filesystem { path, .. } => {
                 params.insert("path".into(), path.display().to_string().into());
             }
-            Self::Settings { reason, .. } | Self::Wifi { reason, .. } => {
+            Self::Settings { reason, .. }
+            | Self::Wifi { reason, .. }
+            | Self::ModelDownload { reason, .. } => {
                 params.insert("reason".into(), (*reason).into());
             }
             Self::Preview { reason, .. } => {
@@ -162,6 +173,7 @@ impl AppError {
             Self::Filesystem { source, .. } => Some(source.to_string()),
             Self::Preview { detail, .. } | Self::Telemetry { detail } => Some(detail.clone()),
             Self::Detection(e) => Some(e.to_string()),
+            Self::ModelDownload { detail, .. } => Some(detail.clone()),
             _ => None,
         }
     }

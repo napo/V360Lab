@@ -15,15 +15,22 @@ pub struct AppState {
     /// Used when no download directory is configured.
     pub default_download_root: PathBuf,
     pub preview: PreviewManager,
+    /// Where downloaded detection models are kept (app data).
+    pub models_dir: PathBuf,
     camera: RwLock<Option<Arc<dyn CameraClient>>>,
 }
 
 impl AppState {
-    pub fn new(settings: SettingsStore, default_download_root: PathBuf) -> Self {
+    pub fn new(
+        settings: SettingsStore,
+        default_download_root: PathBuf,
+        models_dir: PathBuf,
+    ) -> Self {
         Self {
             settings,
             default_download_root,
             preview: PreviewManager::default(),
+            models_dir,
             camera: RwLock::new(None),
         }
     }

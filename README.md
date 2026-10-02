@@ -55,7 +55,7 @@ V360Lab is a desktop toolkit that:
 
 ## Object detection models
 
-V360Lab does not ship a model: choose one under the media viewer (Object detection → Choose a YOLO model). Any Ultralytics YOLOv8/YOLO11 *detect* model exported to ONNX works; the class names are read from the file. To export the small general-purpose model (80 COCO classes: people, bicycles, cars, buses, trucks, traffic lights, stop signs, benches, dogs…):
+V360Lab does not ship a model inside the app. Under Advanced → App → Object detection (or in the media viewer when no model is set), the app offers to download the recommended one, YOLO11n with 80 COCO classes (10.7 MB), from this repository's `models-v1` release: it checks the size and the free space first, asks for confirmation (reminding to use a Wi-Fi with internet, not the camera's), verifies the SHA-256 and selects the model. A custom model can be chosen as a file instead. Any Ultralytics YOLOv8/YOLO11 *detect* model exported to ONNX works; the class names are read from the file. To export the small general-purpose model (80 COCO classes: people, bicycles, cars, buses, trucks, traffic lights, stop signs, benches, dogs…):
 
 ```bash
 pip install ultralytics
@@ -64,7 +64,7 @@ yolo export model=yolo11n.pt format=onnx opset=13 imgsz=640
 
 Ultralytics models are licensed under the AGPL-3.0, like V360Lab. Models trained on other data (road signs, road damage, street furniture) can be used the same way; check the licence of their training data.
 
-Detection speed on a desktop CPU: about 1 s per 360° frame (eight views) with `yolo11n`; slower on phones.
+Detection speed depends a lot on the device: "Test the speed" in the object detection panel measures it (about 1 s per view, so ~10 s per 360° frame of eight views, on a laptop CPU in a development build; release builds are faster, phones slower). During detection the app shows the time left.
 
 ## Architecture
 
@@ -238,7 +238,7 @@ Installers and bundles are written to `src-tauri/target/release/bundle/`.
 - Enable Wi-Fi on the VIRB 360 and connect this computer to the camera's network. Alternatively, put both on the same local network.
 - When the camera acts as an access point it is typically reachable at `192.168.0.1`. This is only a default; enter the actual address when it differs.
 - The address field accepts `192.168.0.1`, `192.168.0.1:8080` or `http://virb.local`. Paths, credentials and non-HTTP schemes are rejected.
-- V360Lab contacts only the configured address. URLs reported by the camera (media, thumbnails, FIT) are re-anchored onto that address, redirects are not followed and system proxies are bypassed. No data is sent to external services.
+- V360Lab contacts only the configured address. URLs reported by the camera (media, thumbnails, FIT) are re-anchored onto that address, redirects are not followed and system proxies are bypassed. No data is sent to external services. The only internet access is the optional download of the object detection model, when the user asks for it (from this repository's `models-v1` release, checked against a fixed size and SHA-256).
 
 ### Timeouts
 

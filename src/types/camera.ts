@@ -203,3 +203,41 @@ export interface DetectionReport {
   path: string;
   cancelled: boolean;
 }
+
+/** A detection model V360Lab can download. */
+export interface ModelStatus {
+  id: string;
+  name: string;
+  fileName: string;
+  url: string;
+  sizeBytes: number;
+  sha256: string;
+  classes: number;
+  license: string;
+  /** Path of the downloaded file, if present. */
+  installedPath: string | null;
+  /** It is the model object detection uses now. */
+  active: boolean;
+}
+
+export interface DownloadCheck {
+  sizeBytes: number;
+  remoteSizeBytes: number | null;
+  freeBytes: number | null;
+  enoughSpace: boolean;
+}
+
+export interface ModelDownloadProgress {
+  received: number;
+  total: number;
+}
+
+/** How fast this device runs the detection model. */
+export interface DetectionBenchmark {
+  loadMs: number;
+  /** One view, median of a few runs. */
+  viewMs: number;
+  viewsPerFrame: number;
+  /** Estimated time per 360° frame. */
+  frameMs: number;
+}

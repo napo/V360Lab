@@ -890,8 +890,121 @@ pub async fn detect_objects(
     logged("detect_objects", result)
 }
 
+/// Measures how fast this device runs the chosen detection model.
+#[tauri::command]
+pub async fn benchmark_detection(
+    state: State<'_, AppState>,
+) -> CommandResult<crate::detect::Benchmark> {
+    let result = async {
+        let model = state.settings.get().detection_model.ok_or(AppError::Detection(
+            crate::detect::DetectError::Model("no model chosen".into()),
+        ))?;
+        let benchmark = tauri::async_runtime::spawn_blocking(move || {
+            crate::detect::benchmark(std::path::Path::new(&model))
+        })
+        .await
+        .map_err(|e| AppError::Detection(crate::detect::DetectError::Inference(e.to_string())))??;
+        log::info!(
+            "Detection benchmark: load {} ms, {} ms per view, ~{} ms per 360° frame",
+            benchmark.load_ms,
+            benchmark.view_ms,
+            benchmark.frame_ms
+        );
+        Ok(benchmark)
+    }
+    .await;
+    logged("benchmark_detection", result)
+}
+
 /// Stops the running object detection after the current frame.
 #[tauri::command]
 pub fn cancel_detection() {
     crate::detect::cancel();
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStatus {
+    #[serde(flatten)]
+    model: crate::models::ModelInfo,
+    /// Path of the downloaded file, if present.
+    installed_path: Option<String>,
+    /// It is the model detection uses now.
+    active: bool,
+}
+
+/// Models V360Lab can download, and whether they are already there.
+#[tauri::command]
+pub fn list_models(state: State<'_, AppState>) -> Vec<ModelStatus> {
+    let active = state.settings.get().detection_model;
+    crate::models::CATALOG
+        .iter()
+        .map(|model| {
+            let path = crate::models::installed_path(&state.models_dir, model);
+            let installed_path = path.exists().then(|| path.display().to_string());
+            ModelStatus {
+                active: installed_path.is_some() && installed_path == active,
+                installed_path,
+                model: model.clone(),
+            }
+        })
+        .collect()
+}
+
+fn catalog_model(id: &str) -> CommandResult<&'static crate::models::ModelInfo> {
+    crate::models::find(id).ok_or_else(|| AppError::ModelDownload {
+        reason: "network",
+        detail: format!("unknown model {id}"),
+    })
+}
+
+/// Size, free space and reachability before a model download.
+#[tauri::command]
+pub async fn check_model_download(
+    state: State<'_, AppState>,
+    id: String,
+) -> CommandResult<crate::models::DownloadCheck> {
+    let result = async { crate::models::check(catalog_model(&id)?, &state.models_dir).await }.await;
+    logged("check_model_download", result)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadProgress {
+    received: u64,
+    total: u64,
+}
+
+/// Downloads a model from the catalog, verifies it and makes it the one
+/// object detection uses. Progress is sent on `progress`.
+#[tauri::command]
+pub async fn download_model(
+    state: State<'_, AppState>,
+    id: String,
+    progress: Channel<ModelDownloadProgress>,
+) -> CommandResult<SettingsView> {
+    let result = async {
+        let model = catalog_model(&id)?;
+        log::info!(
+            "Downloading detection model {} from {}",
+            model.id,
+            model.url
+        );
+        // At most one message per percent.
+        let last = std::sync::atomic::AtomicU64::new(u64::MAX);
+        let path = crate::models::download(model, &state.models_dir, &|received, total| {
+            let percent = received * 100 / total.max(1);
+            if last.swap(percent, Ordering::Relaxed) != percent {
+                let _ = progress.send(ModelDownloadProgress { received, total });
+            }
+        })
+        .await?;
+        log::info!("Model saved to {}", path.display());
+        state
+            .settings
+            .update(|s| s.detection_model = Some(path.display().to_string()))?;
+        Ok(settings_view(&state))
+    }
+    .await;
+    logged("download_model", result)
 }

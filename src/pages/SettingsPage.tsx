@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { LanguageSelect } from "../components/LanguageSelect";
+import { ModelManager } from "../components/ModelManager";
 import { Panel } from "../components/Panel";
 import { useI18n } from "../hooks/useI18n";
 import { useSettings } from "../hooks/useSettings";
@@ -85,6 +86,10 @@ export function SettingsPage() {
           <span>{t("settings.language")}</span>
           <LanguageSelect includeSystem />
         </label>
+      </Panel>
+      <Panel title={t("models.panel")}>
+        <p className="muted small">{t("models.intro")}</p>
+        <ModelManager />
       </Panel>
       <form className="form" onSubmit={submit}>
         <Panel title={t("settings.cameraPanel")}>

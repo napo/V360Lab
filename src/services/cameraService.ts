@@ -4,8 +4,12 @@ import type {
   CameraStatus,
   CommandAck,
   ConnectionInfo,
+  DetectionBenchmark,
   DetectionProgress,
   DetectionReport,
+  DownloadCheck,
+  ModelDownloadProgress,
+  ModelStatus,
   DeviceInfo,
   DiscoveredCamera,
   FeatureList,
@@ -17,6 +21,7 @@ import type {
   WifiSwitch,
 } from "../types/camera";
 import type { DeleteReport } from "../types/downloads";
+import type { SettingsView } from "../types/settings";
 import type { FrameLocation } from "../utils/frames";
 import { Channel } from "@tauri-apps/api/core";
 import { call, callRaw } from "./backend";
@@ -79,6 +84,15 @@ export const cameraService = {
     return call<DetectionReport>("detect_objects", { item, minConfidence, progress });
   },
   cancelDetection: () => call<void>("cancel_detection"),
+  benchmarkDetection: () => call<DetectionBenchmark>("benchmark_detection"),
+  listModels: () => call<ModelStatus[]>("list_models"),
+  checkModelDownload: (id: string) => call<DownloadCheck>("check_model_download", { id }),
+  /** Downloads a model and makes it the active one; resolves to the new settings. */
+  downloadModel: (id: string, onProgress: (progress: ModelDownloadProgress) => void) => {
+    const progress = new Channel<ModelDownloadProgress>();
+    progress.onmessage = onProgress;
+    return call<SettingsView>("download_model", { id, progress });
+  },
   setFavorite: (item: MediaItem, favorite: boolean) =>
     call<MediaItem>("set_media_favorite", { item, favorite }),
   wifiNetworks: shared(() => call<WifiNetworks>("get_wifi_networks")),
