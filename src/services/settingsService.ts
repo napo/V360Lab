@@ -11,6 +11,17 @@ export const settingsService = {
   confirm: (message: string, options: { title: string; okLabel: string; cancelLabel: string }) =>
     ask(message, { ...options, kind: "warning" }),
 
+  /** Native file picker for an ONNX model; resolves to null when cancelled. */
+  pickModel: async (title: string): Promise<string | null> => {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "ONNX", extensions: ["onnx"] }],
+      title,
+    });
+    return typeof selected === "string" ? selected : null;
+  },
+
   /** Native folder picker; resolves to null when cancelled. */
   pickDirectory: async (current: string | null, title: string): Promise<string | null> => {
     const selected = await open({

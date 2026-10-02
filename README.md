@@ -40,6 +40,7 @@ V360Lab is a desktop toolkit that:
 - Play videos and open photos from the library, streamed from the camera through the backend (`virb://` protocol with Range support, so videos can be seeked). Videos start from the camera's low-resolution copy (`.GLV`), with the original one tap away; 360° videos and photos open in the interactive 360° view.
 - Telemetry under the video: the FIT file is decoded (`gps_metadata`, `record`, `camera_event`, `timestamp_correlation`), aligned with the video (on the camera's "video start" event when present, otherwise on the media date) and shown as a GPS track, speed and altitude charts and summary figures. The marker follows playback; tapping the track or the chart seeks the video. GPS jumps (positions implying an impossible speed) are dropped. The track can be exported as GPX or GeoJSON (with each point's UTC time and position in the video).
 - Georeferenced frames: extract frames of a video every N metres travelled or every N seconds. Each frame is a JPEG with EXIF GPS (position, altitude, UTC time, speed, direction of travel); 360° frames are 2:1 equirectangular with XMP GPano panorama tags, ready for Mapillary, Panoramax or photogrammetry. A `frames.geojson` index lists them. 360° frames can be levelled (experimental, see below).
+- Object detection on the extracted frames with a YOLO model (ONNX), run on the device by [tract](https://github.com/sonos/tract), a pure-Rust inference engine. 360° frames are split into eight 90° perspective views; each object is mapped back to its direction (yaw and pitch from the camera's front) and, with the direction of travel, to a compass bearing. Results go to `detections.geojson`, one point per object at the position of its frame. See [Object detection models](#object-detection-models).
 - Horizon levelling (experimental): the FIT accelerometer (`accelerometer_data` with `three_d_sensor_calibration`) gives the camera's tilt over time; the 360° video view and the extracted 360° frames can be rotated so that the horizon is straight. The telemetry panel shows the estimated roll and pitch, now and as a chart over the video. Frames are decoded by the webview from the camera's video, so the original 5.7K file needs a device able to decode it; the preview copy always works but is low resolution.
 - Download media, FIT telemetry and thumbnails, plus a `metadata.json` holding the original camera metadata. Items can be downloaded one by one or as a selection.
 - Delete files on the camera, one by one or as a selection, after a native confirmation dialog. Each deletion is verified against the media list.
@@ -51,6 +52,19 @@ V360Lab is a desktop toolkit that:
 - Mock camera mode for development without hardware
 - Error messages written for the user, with technical details available in debug mode
 - User interface in English and Italian (follows the system language by default; switchable from the sidebar or Settings)
+
+## Object detection models
+
+V360Lab does not ship a model: choose one under the media viewer (Object detection → Choose a YOLO model). Any Ultralytics YOLOv8/YOLO11 *detect* model exported to ONNX works; the class names are read from the file. To export the small general-purpose model (80 COCO classes: people, bicycles, cars, buses, trucks, traffic lights, stop signs, benches, dogs…):
+
+```bash
+pip install ultralytics
+yolo export model=yolo11n.pt format=onnx opset=13 imgsz=640
+```
+
+Ultralytics models are licensed under the AGPL-3.0, like V360Lab. Models trained on other data (road signs, road damage, street furniture) can be used the same way; check the licence of their training data.
+
+Detection speed on a desktop CPU: about 1 s per 360° frame (eight views) with `yolo11n`; slower on phones.
 
 ## Architecture
 
@@ -309,6 +323,7 @@ Please report findings (with the raw JSON from debug mode) in an issue.
 
 **Phase 3: computer vision (started)**
 - Frame extraction: done, georeferenced (EXIF GPS, GPano for 360°), every N metres or seconds
+- YOLO detection: started (any YOLOv8/YOLO11 ONNX model, on the device, with directions and bearings)
 - OpenCV processing
 - Object detection
 - YOLO

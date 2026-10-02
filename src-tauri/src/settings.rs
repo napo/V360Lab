@@ -22,6 +22,8 @@ pub struct Settings {
     pub status_poll_interval_secs: u32,
     /// UI language (`en`, `it`); `None` follows the system language.
     pub language: Option<String>,
+    /// YOLO model (ONNX file) used for object detection.
+    pub detection_model: Option<String>,
 }
 
 /// Languages the UI is translated into.
@@ -36,6 +38,7 @@ impl Default for Settings {
             debug_mode: cfg!(debug_assertions),
             status_poll_interval_secs: 5,
             language: None,
+            detection_model: None,
         }
     }
 }

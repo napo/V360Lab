@@ -842,3 +842,56 @@ pub async fn write_frames_index(
     .await;
     logged("write_frames_index", result)
 }
+
+/// Finds objects in the extracted frames of a video with the YOLO model
+/// chosen in the settings, and writes `detections.geojson` next to them.
+/// Progress is sent on `progress` after each frame.
+#[tauri::command]
+pub async fn detect_objects(
+    state: State<'_, AppState>,
+    item: MediaItem,
+    min_confidence: f32,
+    progress: Channel<crate::detect::DetectionProgress>,
+) -> CommandResult<crate::detect::DetectionReport> {
+    let result = async {
+        let model = state
+            .settings
+            .get()
+            .detection_model
+            .ok_or(AppError::Detection(crate::detect::DetectError::Model(
+                "no model chosen".into(),
+            )))?;
+        let directory = frames_directory(&state, &item.name, item.timestamp);
+        let video = item.name.clone();
+        log::info!("Detecting objects in the frames of {video} with {model}");
+        let report = tauri::async_runtime::spawn_blocking(move || {
+            crate::detect::detect_video_frames(
+                std::path::Path::new(&model),
+                &directory,
+                &video,
+                min_confidence.clamp(0.05, 0.95),
+                &|p| {
+                    let _ = progress.send(p);
+                },
+            )
+        })
+        .await
+        .map_err(|e| AppError::Detection(crate::detect::DetectError::Inference(e.to_string())))??;
+        log::info!(
+            "{} objects in {} frames of {} ({})",
+            report.detections,
+            report.frames,
+            item.name,
+            report.path
+        );
+        Ok(report)
+    }
+    .await;
+    logged("detect_objects", result)
+}
+
+/// Stops the running object detection after the current frame.
+#[tauri::command]
+pub fn cancel_detection() {
+    crate::detect::cancel();
+}

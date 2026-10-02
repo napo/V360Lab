@@ -10,6 +10,7 @@ import { accelAt, detectAxes, tiltAngles, tiltSeries, upInImage } from "../../ut
 import { nearestPoint, projectTrack, sampleIndexAt, seriesPath } from "../../utils/telemetry";
 import { ErrorBanner } from "../ErrorBanner";
 import { FrameExtractor } from "./FrameExtractor";
+import { ObjectDetector } from "./ObjectDetector";
 
 const MAP_W = 320;
 const MAP_H = 220;
@@ -243,6 +244,7 @@ export function TelemetryPanel({ item, time, seek, telemetry: state }: Telemetry
       )}
       {exportError && <ErrorBanner error={exportError} title={t("telemetry.exportFailed")} />}
       {summary.hasPosition && <FrameExtractor item={item} telemetry={telemetry} />}
+      {summary.hasPosition && <ObjectDetector item={item} />}
     </section>
   );
 }

@@ -8,6 +8,7 @@
 pub mod activity;
 pub mod camera;
 pub mod commands;
+pub mod detect;
 pub mod discovery;
 pub mod downloads;
 pub mod error;
@@ -120,6 +121,8 @@ pub fn run() {
             commands::export_track,
             commands::save_frame,
             commands::write_frames_index,
+            commands::detect_objects,
+            commands::cancel_detection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running V360Lab");

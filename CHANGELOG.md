@@ -5,6 +5,7 @@ of the tagged version as the GitHub release notes.
 
 ## Unreleased
 
+- **Object detection (YOLO)**: find people, vehicles, traffic lights and other objects in the extracted frames with any Ultralytics YOLOv8/YOLO11 model exported to ONNX, run on the device (tract, pure Rust). 360° frames are split into perspective views, each object gets its direction and compass bearing, and the results are saved as `detections.geojson`. Progress, cancel and a count per class in the media viewer.
 - **Horizon levelling (experimental)**: the FIT accelerometer is decoded (with the camera's calibration) and used to straighten 360° images: a "Level horizon" switch in the 360° video view and in the frame extraction, and the camera's roll and pitch in the telemetry panel. Which sensor axis points forward still has to be confirmed on a real camera (see the README).
 - **Tilt chart**: the camera's roll and pitch over the video, under the speed and altitude chart (tap to seek). Useful to check the levelling.
 - **GPS jumps removed**: positions implying an impossible speed (well above the speed the GPS reports) are dropped from the track, distance, exports and frames; the panel shows how many.

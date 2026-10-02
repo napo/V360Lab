@@ -2156,3 +2156,24 @@ details.panel:not([open]) > summary {
 .legend-pitch::before {
   background: #7c3aed;
 }
+
+/* Object detection */
+
+.object-detector h3 {
+  font-size: 14px;
+  margin: 14px 0 4px;
+}
+
+.object-detector input[type="range"] {
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.detect-classes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+}

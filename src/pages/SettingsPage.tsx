@@ -64,6 +64,8 @@ export function SettingsPage() {
         ...draft,
         // The language is managed by the selector above and saved on change.
         language: view.settings.language,
+        // Chosen from the media viewer, saved there.
+        detectionModel: view.settings.detectionModel,
         lastCameraAddress: draft.lastCameraAddress?.trim() || null,
         downloadDirectory: draft.downloadDirectory?.trim() || null,
       });

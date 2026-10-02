@@ -59,6 +59,10 @@ pub enum AppError {
         message: String,
     },
 
+    /// Object detection could not run.
+    #[error("{0}")]
+    Detection(#[from] crate::detect::DetectError),
+
     /// A FIT file that could not be decoded.
     #[error("Could not read the telemetry: {detail}")]
     Telemetry { detail: String },
@@ -109,6 +113,11 @@ impl AppError {
             Self::Preview { .. } => "preview",
             Self::Wifi { .. } => "wifi",
             Self::Telemetry { .. } => "telemetry",
+            Self::Detection(e) => match e {
+                crate::detect::DetectError::NoFrames => "detectionNoFrames",
+                crate::detect::DetectError::Model(_) => "detectionModel",
+                _ => "detection",
+            },
         }
     }
 
@@ -116,7 +125,7 @@ impl AppError {
         let mut params = Map::new();
         match self {
             Self::Camera(e) => return e.params(),
-            Self::NotConnected | Self::Telemetry { .. } => {}
+            Self::NotConnected | Self::Telemetry { .. } | Self::Detection(_) => {}
             Self::NotACamera { address, .. } => {
                 params.insert("address".into(), address.as_str().into());
             }
@@ -152,6 +161,7 @@ impl AppError {
             )),
             Self::Filesystem { source, .. } => Some(source.to_string()),
             Self::Preview { detail, .. } | Self::Telemetry { detail } => Some(detail.clone()),
+            Self::Detection(e) => Some(e.to_string()),
             _ => None,
         }
     }

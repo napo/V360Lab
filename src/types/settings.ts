@@ -8,6 +8,8 @@ export interface Settings {
   statusPollIntervalSecs: number;
   /** "en" | "it"; null follows the system language. */
   language: string | null;
+  /** YOLO model (ONNX file) for object detection. */
+  detectionModel: string | null;
 }
 
 export interface SettingsView {

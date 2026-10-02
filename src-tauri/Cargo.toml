@@ -34,6 +34,8 @@ base64 = "0.22"
 if-addrs = "0.15.0"
 socket2 = "0.6"
 percent-encoding = "2"
+tract-onnx = "0.23"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
@@ -47,3 +49,29 @@ debug = "line-tables-only"
 
 [profile.dev.package."*"]
 debug = false
+
+# Object detection runs ~5× faster with the inference engine optimised:
+# keep it fast in development builds too.
+[profile.dev.package.tract-core]
+opt-level = 3
+
+[profile.dev.package.tract-linalg]
+opt-level = 3
+
+[profile.dev.package.tract-onnx]
+opt-level = 3
+
+[profile.dev.package.tract-hir]
+opt-level = 3
+
+[profile.dev.package.tract-data]
+opt-level = 3
+
+[profile.dev.package.ndarray]
+opt-level = 3
+
+[profile.dev.package.image]
+opt-level = 3
+
+[profile.dev.package.zune-jpeg]
+opt-level = 3

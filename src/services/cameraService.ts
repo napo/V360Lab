@@ -4,6 +4,8 @@ import type {
   CameraStatus,
   CommandAck,
   ConnectionInfo,
+  DetectionProgress,
+  DetectionReport,
   DeviceInfo,
   DiscoveredCamera,
   FeatureList,
@@ -16,6 +18,7 @@ import type {
 } from "../types/camera";
 import type { DeleteReport } from "../types/downloads";
 import type { FrameLocation } from "../utils/frames";
+import { Channel } from "@tauri-apps/api/core";
 import { call, callRaw } from "./backend";
 
 /**
@@ -69,6 +72,13 @@ export const cameraService = {
     item: MediaItem,
     frames: Array<{ file: string; videoSeconds: number; location: FrameLocation }>,
   ) => call<string>("write_frames_index", { item, frames }),
+  /** Finds objects in the video's extracted frames with the chosen model. */
+  detectObjects: (item: MediaItem, minConfidence: number, onProgress: (progress: DetectionProgress) => void) => {
+    const progress = new Channel<DetectionProgress>();
+    progress.onmessage = onProgress;
+    return call<DetectionReport>("detect_objects", { item, minConfidence, progress });
+  },
+  cancelDetection: () => call<void>("cancel_detection"),
   setFavorite: (item: MediaItem, favorite: boolean) =>
     call<MediaItem>("set_media_favorite", { item, favorite }),
   wifiNetworks: shared(() => call<WifiNetworks>("get_wifi_networks")),

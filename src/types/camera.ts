@@ -187,3 +187,19 @@ export interface AccelSample {
   y: number;
   z: number;
 }
+
+export interface DetectionProgress {
+  done: number;
+  total: number;
+  detections: number;
+}
+
+export interface DetectionReport {
+  frames: number;
+  detections: number;
+  /** [class, count], most frequent first. */
+  byClass: Array<[string, number]>;
+  /** Path of detections.geojson. */
+  path: string;
+  cancelled: boolean;
+}
