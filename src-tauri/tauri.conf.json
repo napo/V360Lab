@@ -35,6 +35,15 @@
     ],
     "category": "Utility",
     "shortDescription": "Garmin VIRB 360 toolkit",
-    "longDescription": "Independent open-source toolkit for Garmin VIRB 360 media and telemetry."
+    "longDescription": "Independent open-source toolkit for Garmin VIRB 360 media and telemetry.",
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBMjM2MEM3NjUyNUJFQTQKUldTa3ZpVmx4MkFqV2xRVldTekhKUHorNG9TN0gxR2IxTU5WNGpUQ0REam13a2MrMVltTEFYbjIK",
+      "endpoints": [
+        "https://github.com/napo/V360Lab/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

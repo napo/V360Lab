@@ -9,6 +9,7 @@ import { DownloadsProvider } from "./context/DownloadsContext";
 import { SettingsProvider } from "./context/SettingsContext";
 import { useCamera } from "./hooks/useCamera";
 import { I18nProvider } from "./i18n/I18nContext";
+import { UpdateNotice } from "./components/UpdateNotice";
 import { AdvancedPage } from "./pages/AdvancedPage";
 import { CapturePage } from "./pages/CapturePage";
 import { ConnectPage } from "./pages/ConnectPage";
@@ -39,7 +40,10 @@ function Shell() {
       <Sidebar current={page} onNavigate={setPage} />
       <div className="main">
         <MobileHeader />
-        <main className="content">{content}</main>
+        <main className="content">
+          <UpdateNotice />
+          {content}
+        </main>
         <BottomNav current={page} onNavigate={setPage} />
       </div>
     </div>

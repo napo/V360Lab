@@ -90,11 +90,16 @@ jobs:
       - run: npm ci
 
       # Builds the installers (Windows: .msi and .exe; Linux: .deb, .rpm,
-      # .AppImage) and uploads them to the release.
+      # .AppImage), signs the update artifacts with the updater key, and
+      # uploads them to the release with latest.json, which installed apps
+      # read to update themselves (src-tauri/tauri.conf.json, plugins.updater).
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          includeUpdaterJson: true
           tagName: ${{ needs.create-release.outputs.tag }}
           releaseName: V360Lab ${{ needs.create-release.outputs.tag }}
           releaseBody: ""
@@ -165,6 +170,9 @@ jobs:
           } > src-tauri/gen/android/keystore.properties
 
       - name: Build the APK
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri android build --apk
 
       - name: Upload the APK to the release

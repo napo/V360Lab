@@ -10,6 +10,20 @@ export interface Settings {
   language: string | null;
   /** YOLO model (ONNX file) for object detection. */
   detectionModel: string | null;
+  /** Look for a newer release on GitHub when the app starts. */
+  checkUpdates: boolean;
+}
+
+/** Result of the check for a newer release. */
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  available: boolean;
+  /** Release notes (Markdown). */
+  notes: string;
+  pageUrl: string;
+  apkUrl: string | null;
+  platform: "android" | "desktop";
 }
 
 export interface SettingsView {

@@ -20,6 +20,7 @@ pub mod preview;
 pub mod settings;
 pub mod state;
 pub mod telemetry;
+pub mod updates;
 pub mod virb;
 pub mod wifi;
 
@@ -54,8 +55,16 @@ pub fn apply_log_level(debug_mode: bool) {
 pub fn run() {
     init_logging();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init());
+    // Self-update (signed, from the GitHub release) on desktop only.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
+
+    builder
         .register_asynchronous_uri_scheme_protocol(
             media_protocol::SCHEME,
             |ctx, request, responder| {
@@ -126,6 +135,7 @@ pub fn run() {
             commands::detect_objects,
             commands::cancel_detection,
             commands::benchmark_detection,
+            commands::check_for_update,
             commands::list_models,
             commands::check_model_download,
             commands::download_model,

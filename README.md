@@ -49,6 +49,7 @@ V360Lab is a desktop toolkit that:
 - Sensors paired with the camera (`sensors`) and media folders on the card (`mediaDirList`) under Advanced → Device.
 - On phones, the 360° view can follow the phone's movement (gyroscope).
 - The commands the firmware supports (`commandList`) are shown under Advanced → Device; features the camera does not list are hidden.
+- Updates: at start-up the app checks GitHub for a newer release and, after the user confirms, installs it. On Windows and Linux (AppImage) the update is signed with the project's updater key, verified, installed, and the app restarts; on Android the APK is downloaded and Android asks to install it; other installations (.deb, .rpm) open the download page. Releases before 0.5.2 cannot update themselves: install 0.5.2 by hand once.
 - Mock camera mode for development without hardware
 - Error messages written for the user, with technical details available in debug mode
 - User interface in English and Italian (follows the system language by default; switchable from the sidebar or Settings)
@@ -238,7 +239,7 @@ Installers and bundles are written to `src-tauri/target/release/bundle/`.
 - Enable Wi-Fi on the VIRB 360 and connect this computer to the camera's network. Alternatively, put both on the same local network.
 - When the camera acts as an access point it is typically reachable at `192.168.0.1`. This is only a default; enter the actual address when it differs.
 - The address field accepts `192.168.0.1`, `192.168.0.1:8080` or `http://virb.local`. Paths, credentials and non-HTTP schemes are rejected.
-- V360Lab contacts only the configured address. URLs reported by the camera (media, thumbnails, FIT) are re-anchored onto that address, redirects are not followed and system proxies are bypassed. No data is sent to external services. The only internet access is the optional download of the object detection model, when the user asks for it (from this repository's `models-v1` release, checked against a fixed size and SHA-256).
+- V360Lab contacts only the configured address. URLs reported by the camera (media, thumbnails, FIT) are re-anchored onto that address, redirects are not followed and system proxies are bypassed. No data is sent to external services. Internet is used only for two optional things: checking for a newer release on GitHub at start-up (at most every six hours, can be turned off in Settings → Updates), and downloading the object detection model when the user asks for it (from this repository's `models-v1` release, checked against a fixed size and SHA-256).
 
 ### Timeouts
 

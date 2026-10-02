@@ -6,8 +6,9 @@ import { Panel } from "../components/Panel";
 import { useI18n } from "../hooks/useI18n";
 import { useSettings } from "../hooks/useSettings";
 import { settingsService } from "../services/settingsService";
+import { updateService } from "../services/updateService";
 import type { AppError } from "../types/errors";
-import type { Settings } from "../types/settings";
+import type { Settings, UpdateInfo } from "../types/settings";
 import { toAppError } from "../utils/errors";
 
 export function SettingsPage() {
@@ -17,6 +18,22 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateResult, setUpdateResult] = useState<UpdateInfo | null>(null);
+  const [updateError, setUpdateError] = useState<AppError | null>(null);
+
+  const checkNow = async () => {
+    setCheckingUpdate(true);
+    setUpdateError(null);
+    try {
+      setUpdateResult(await updateService.check());
+      updateService.markChecked();
+    } catch (e) {
+      setUpdateError(toAppError(e));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   // Initialize the form once; later settings changes (e.g. the language,
   // which is saved immediately) must not discard unsaved edits.
@@ -141,6 +158,36 @@ export function SettingsPage() {
           <p className="muted small">
             <LayoutNote />
           </p>
+        </Panel>
+
+        <Panel title={t("settings.updatesPanel")}>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={draft.checkUpdates}
+              onChange={(e) => update({ checkUpdates: e.target.checked })}
+            />
+            {t("settings.checkUpdates")}
+          </label>
+          <p className="muted small">{t("settings.checkUpdatesHint")}</p>
+          <div className="input-row">
+            <button type="button" className="btn btn-small" disabled={checkingUpdate} onClick={() => void checkNow()}>
+              {checkingUpdate ? t("settings.checkingUpdate") : t("settings.checkNow")}
+            </button>
+            {updateResult && (
+              <span className="small">
+                {updateResult.available
+                  ? t("settings.updateAvailable", { version: updateResult.latestVersion })
+                  : t("settings.upToDate", { version: updateResult.currentVersion })}
+              </span>
+            )}
+            {updateResult?.available && (
+              <button type="button" className="btn btn-small btn-ghost" onClick={() => void updateService.open(updateResult.pageUrl)}>
+                {t("update.details")}
+              </button>
+            )}
+          </div>
+          {updateError && <ErrorBanner error={updateError} title={t("update.failed")} />}
         </Panel>
 
         <Panel title={t("settings.developerPanel")}>

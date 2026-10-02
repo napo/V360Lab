@@ -896,9 +896,13 @@ pub async fn benchmark_detection(
     state: State<'_, AppState>,
 ) -> CommandResult<crate::detect::Benchmark> {
     let result = async {
-        let model = state.settings.get().detection_model.ok_or(AppError::Detection(
-            crate::detect::DetectError::Model("no model chosen".into()),
-        ))?;
+        let model = state
+            .settings
+            .get()
+            .detection_model
+            .ok_or(AppError::Detection(crate::detect::DetectError::Model(
+                "no model chosen".into(),
+            )))?;
         let benchmark = tauri::async_runtime::spawn_blocking(move || {
             crate::detect::benchmark(std::path::Path::new(&model))
         })
@@ -1007,4 +1011,22 @@ pub async fn download_model(
     }
     .await;
     logged("download_model", result)
+}
+
+/// Is there a newer V360Lab on GitHub?
+#[tauri::command]
+pub async fn check_for_update() -> CommandResult<crate::updates::UpdateInfo> {
+    let result = crate::updates::check(
+        crate::updates::LATEST_RELEASE_API,
+        env!("CARGO_PKG_VERSION"),
+    )
+    .await;
+    if let Ok(info) = &result {
+        log::info!(
+            "Update check: current {}, latest {}",
+            info.current_version,
+            info.latest_version
+        );
+    }
+    logged("check_for_update", result)
 }

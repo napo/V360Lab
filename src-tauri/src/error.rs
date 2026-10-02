@@ -71,6 +71,10 @@ pub enum AppError {
         detail: String,
     },
 
+    /// Checking for a newer release failed (offline, GitHub unreachable).
+    #[error("Could not check for updates: {detail}")]
+    UpdateCheck { detail: String },
+
     /// A FIT file that could not be decoded.
     #[error("Could not read the telemetry: {detail}")]
     Telemetry { detail: String },
@@ -122,6 +126,7 @@ impl AppError {
             Self::Wifi { .. } => "wifi",
             Self::Telemetry { .. } => "telemetry",
             Self::ModelDownload { .. } => "modelDownload",
+            Self::UpdateCheck { .. } => "updateCheck",
             Self::Detection(e) => match e {
                 crate::detect::DetectError::NoFrames => "detectionNoFrames",
                 crate::detect::DetectError::Model(_) => "detectionModel",
@@ -134,7 +139,10 @@ impl AppError {
         let mut params = Map::new();
         match self {
             Self::Camera(e) => return e.params(),
-            Self::NotConnected | Self::Telemetry { .. } | Self::Detection(_) => {}
+            Self::NotConnected
+            | Self::Telemetry { .. }
+            | Self::Detection(_)
+            | Self::UpdateCheck { .. } => {}
             Self::NotACamera { address, .. } => {
                 params.insert("address".into(), address.as_str().into());
             }
@@ -173,7 +181,9 @@ impl AppError {
             Self::Filesystem { source, .. } => Some(source.to_string()),
             Self::Preview { detail, .. } | Self::Telemetry { detail } => Some(detail.clone()),
             Self::Detection(e) => Some(e.to_string()),
-            Self::ModelDownload { detail, .. } => Some(detail.clone()),
+            Self::ModelDownload { detail, .. } | Self::UpdateCheck { detail } => {
+                Some(detail.clone())
+            }
             _ => None,
         }
     }

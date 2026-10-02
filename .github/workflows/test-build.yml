@@ -76,6 +76,9 @@ jobs:
           } > src-tauri/gen/android/keystore.properties
 
       - name: Build the APK
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri android build --apk
 
       - name: Name the APK after the version and commit

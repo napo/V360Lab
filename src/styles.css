@@ -2195,3 +2195,21 @@ details.panel:not([open]) > summary {
 .warning-text {
   color: var(--warning);
 }
+
+/* New version notice */
+
+.update-notice {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.update-highlights {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}

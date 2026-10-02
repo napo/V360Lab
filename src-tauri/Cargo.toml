@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
@@ -46,6 +47,11 @@ tempfile = "3"
 
 # Keep debug builds small: no debug info for dependencies (Tauri pulls in
 # ~500 crates), line tables only for V360Lab itself.
+# Self-update exists on desktop only (Android installs APKs itself).
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
 [profile.dev]
 debug = "line-tables-only"
 
