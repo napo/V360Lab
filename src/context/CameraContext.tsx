@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePageVisible } from "../hooks/usePageVisible";
 import { useSettings } from "../hooks/useSettings";
 import { cameraService } from "../services/cameraService";
 import { clearThumbnailCache } from "../services/thumbnailService";
@@ -68,6 +69,8 @@ export const CameraContext = createContext<CameraContextValue | null>(null);
 
 /** Consecutive unreachable/timeout status failures before reporting a lost connection. */
 const MAX_STATUS_FAILURES = 3;
+/** Status refresh interval while the app is in the background. */
+const BACKGROUND_POLL_SECS = 60;
 
 export function CameraProvider({ children }: { children: ReactNode }) {
   const { view, reload: reloadSettings } = useSettings();
@@ -265,13 +268,19 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshAll]);
 
-  // Background status refresh, independent of the current page.
-  const pollSecs = view?.settings.statusPollIntervalSecs ?? 5;
+  // Background status refresh, independent of the current page. It slows
+  // down while nobody looks at the app, and catches up on return.
+  const visible = usePageVisible();
+  const settingsPollSecs = view?.settings.statusPollIntervalSecs ?? 5;
+  const pollSecs = visible ? settingsPollSecs : Math.max(settingsPollSecs, BACKGROUND_POLL_SECS);
+  const wasVisible = useRef(visible);
   useEffect(() => {
     if (connection.status !== "connected") return;
+    if (visible && !wasVisible.current) void refreshStatus();
+    wasVisible.current = visible;
     const id = window.setInterval(() => void refreshStatus(), pollSecs * 1000);
     return () => window.clearInterval(id);
-  }, [connection.status, pollSecs, refreshStatus]);
+  }, [connection.status, visible, pollSecs, refreshStatus]);
 
   const shootingMode = featureValue(findFeature(features, "shootingMode"));
   const supports = useCallback(

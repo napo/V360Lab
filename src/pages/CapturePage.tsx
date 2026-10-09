@@ -108,7 +108,11 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
         ))}
       </div>
 
-      <LivePreview restartKey={previewKey} spherical={featureValue(chips[0][0]) === "360"} />
+      <LivePreview
+        restartKey={previewKey}
+        spherical={featureValue(chips[0][0]) === "360"}
+        recording={recording || intervalActive}
+      />
 
       {modeFeature && (
         <div className="segmented segmented-large" role="group" aria-label={t("capture.mode")}>

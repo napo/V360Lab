@@ -418,6 +418,8 @@ export const it: Dictionary = {
   "preview.sphereView": "Vista 360°",
   "preview.flatView": "Vista piatta",
   "preview.lookAhead": "Guarda avanti",
+  "preview.pausedRecording": "Anteprima in pausa durante la registrazione, per risparmiare la batteria della camera.",
+  "preview.showAnyway": "Mostra comunque",
   "preview.sphereHint": "Trascina per guardarti intorno; avvicina due dita o usa la rotella per lo zoom.",
   "preview.motion": "Guardati intorno muovendo il telefono",
   "preview.motionShort": "Movimento",

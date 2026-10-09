@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../hooks/useI18n";
+import { usePageVisible } from "../../hooks/usePageVisible";
 import { previewService } from "../../services/previewService";
 import type { AppError } from "../../types/errors";
 import { toAppError } from "../../utils/errors";
@@ -41,18 +42,28 @@ function writeFlag(key: string, value: boolean) {
 /**
  * What the camera sees right now, with the current lens and mode. Starts
  * automatically (unless the user turned it off) and stops when unmounted.
+ * To save the camera's battery it also stops while the app is in the
+ * background, and during a recording unless the user asks for it.
  */
 interface LivePreviewProps {
   /** Changes whenever a setting that restarts the camera's stream changes. */
   restartKey?: string;
   /** The camera films 360°: the preview is then an equirectangular image. */
   spherical?: boolean;
+  /** The camera is recording. */
+  recording?: boolean;
 }
 
-export function LivePreview({ restartKey, spherical = false }: LivePreviewProps) {
+export function LivePreview({ restartKey, spherical = false, recording = false }: LivePreviewProps) {
   const { t } = useI18n();
   const supported = webCodecsAvailable();
+  const visible = usePageVisible();
   const [enabled, setEnabled] = useState(() => readFlag(STORAGE_KEY));
+  // Shown during the current recording on request; asked again next time.
+  const [showWhileRecording, setShowWhileRecording] = useState(false);
+  if (!recording && showWhileRecording) setShowWhileRecording(false);
+  const pausedForRecording = recording && !showWhileRecording;
+  const active = supported && enabled && visible && !pausedForRecording;
   const [sphereWanted, setSphereWanted] = useState(() => readFlag(SPHERE_KEY));
   const [sphereFailed, setSphereFailed] = useState(false);
   const [resetKey, setResetKey] = useState(0);
@@ -137,11 +148,14 @@ export function LivePreview({ restartKey, spherical = false }: LivePreviewProps)
   );
 
   useEffect(() => {
-    if (!supported || !enabled) return;
+    if (!active) {
+      setState("off");
+      return;
+    }
     retries.current = 0;
     void start();
     return stop;
-  }, [supported, enabled, start, stop]);
+  }, [active, start, stop]);
 
   // Restart right after a lens/mode change instead of waiting for the
   // stalled-stream detection.
@@ -149,7 +163,7 @@ export function LivePreview({ restartKey, spherical = false }: LivePreviewProps)
   useEffect(() => {
     if (lastKey.current === restartKey) return;
     lastKey.current = restartKey;
-    if (!supported || !enabled) return;
+    if (!active) return;
     generation.current++;
     window.clearTimeout(retryTimer.current);
     player.current?.close();
@@ -158,7 +172,7 @@ export function LivePreview({ restartKey, spherical = false }: LivePreviewProps)
     setState("reconnecting");
     retries.current = 0;
     retryTimer.current = window.setTimeout(() => void start(true), RESTART_AFTER_CHANGE_MS);
-  }, [restartKey, supported, enabled, start]);
+  }, [restartKey, active, start]);
 
   const subscribeFrames = useCallback((listener: () => void) => {
     frameListeners.current.add(listener);
@@ -225,6 +239,14 @@ export function LivePreview({ restartKey, spherical = false }: LivePreviewProps)
             <div className="preview-overlay">
               <Spinner size={28} />
               <span>{state === "starting" ? t("preview.starting") : t("preview.reconnecting")}</span>
+            </div>
+          )}
+          {enabled && pausedForRecording && (
+            <div className="preview-overlay">
+              <span className="preview-paused">{t("preview.pausedRecording")}</span>
+              <button type="button" className="btn btn-small" onClick={() => setShowWhileRecording(true)}>
+                {t("preview.showAnyway")}
+              </button>
             </div>
           )}
           {state === "error" && (

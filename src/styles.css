@@ -1553,6 +1553,12 @@ details.panel:not([open]) > summary {
   font-size: 14px;
 }
 
+.preview-paused {
+  max-width: 32ch;
+  padding: 0 16px;
+  text-align: center;
+}
+
 .preview-live {
   position: absolute;
   top: 8px;

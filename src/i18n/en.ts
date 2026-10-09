@@ -416,6 +416,8 @@ export const en = {
   "preview.sphereView": "360° view",
   "preview.flatView": "Flat view",
   "preview.lookAhead": "Look ahead",
+  "preview.pausedRecording": "Preview paused while recording, to save the camera's battery.",
+  "preview.showAnyway": "Show anyway",
   "preview.sphereHint": "Drag to look around; pinch or scroll to zoom.",
   "preview.motion": "Look around by moving the phone",
   "preview.motionShort": "Motion",
