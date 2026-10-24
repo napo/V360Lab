@@ -3,6 +3,11 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
+## 0.5.4
+
+- **Standby and disconnect on the capture screen**: no need to look for Standby in Advanced any more. While the camera is idle the button puts it in standby; while it records the button becomes "Disconnect the app", which lets the recording go on and only stops the app talking to the camera (standby is not offered during a recording, as it would most likely stop it).
+- **Editable Wi-Fi timeout**: the camera's Wi-Fi timeout (minutes) can now be changed in Advanced. With a short timeout, and the phone off the camera's network, the camera should switch its Wi-Fi off by itself during a long recording and turn it on again at the next power-on. To be confirmed on a camera.
+
 ## 0.5.3
 
 - **Longer camera battery life while recording**: the live preview pauses during a recording or an interval capture (with a "Show anyway" button for the current recording) and whenever the app is in the background or the screen is off; it starts again when you come back. While the app is in the background the camera status is checked once a minute instead of every few seconds.
