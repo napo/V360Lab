@@ -60,6 +60,8 @@ export interface CameraContextValue {
   /** Connects and reports progress under `activityId`; resolves to success. */
   connect: (address: string, mock: boolean, activityId: string) => Promise<boolean>;
   disconnect: () => Promise<void>;
+  /** Puts the camera in standby and disconnects: it stops answering. */
+  standby: () => Promise<void>;
   refreshStatus: () => Promise<void>;
   refreshAll: () => Promise<void>;
   runAction: (action: CameraAction) => Promise<void>;
@@ -229,6 +231,11 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const standby = useCallback(async () => {
+    await cameraService.standby();
+    await disconnect();
+  }, [disconnect]);
+
   const runAction = useCallback(
     async (action: CameraAction) => {
       setPendingAction(action);
@@ -311,6 +318,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       intervalActive,
       connect,
       disconnect,
+      standby,
       refreshStatus,
       refreshAll,
       runAction,
@@ -337,6 +345,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       intervalActive,
       connect,
       disconnect,
+      standby,
       refreshStatus,
       refreshAll,
       runAction,

@@ -13,7 +13,7 @@ import type { AppError } from "../../types/errors";
 import { toAppError } from "../../utils/errors";
 
 export function DevicePanel() {
-  const { connection, deviceInfo, supportedCommands, supports, disconnect } = useCamera();
+  const { connection, deviceInfo, supportedCommands, supports, standby: putInStandby } = useCamera();
   const { debugMode } = useSettings();
   const { t } = useI18n();
   const address = connection.status === "connected" ? connection.address : null;
@@ -42,8 +42,7 @@ export function DevicePanel() {
     setBusy(true);
     setError(null);
     try {
-      await cameraService.standby();
-      await disconnect();
+      await putInStandby();
     } catch (e) {
       setError(toAppError(e));
       setBusy(false);

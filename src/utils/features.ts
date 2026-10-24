@@ -36,7 +36,20 @@ export function isChoice(feature: CameraFeature): boolean {
   return feature.options.length > 0 && feature.featureType !== FEATURE_TYPE_ACTION;
 }
 
+/** A free numeric value, such as `wifiTimeout` ("9.000000"). */
+export function isNumber(feature: CameraFeature): boolean {
+  if (feature.featureType !== 1 || feature.options.length > 0) return false;
+  const value = featureValue(feature);
+  return value !== null && value.trim() !== "" && Number.isFinite(Number(value));
+}
+
+/** `value` written like the camera writes `current` ("9.000000" → "1.000000"). */
+export function formatNumberLike(current: string | null, value: number): string {
+  const decimals = current?.split(".")[1]?.length ?? 0;
+  return value.toFixed(decimals);
+}
+
 /** Features V360Lab can change from the UI. */
 export function isEditable(feature: CameraFeature): boolean {
-  return feature.enabled !== false && (isToggle(feature) || isChoice(feature));
+  return feature.enabled !== false && (isToggle(feature) || isChoice(feature) || isNumber(feature));
 }

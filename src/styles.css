@@ -1257,6 +1257,19 @@ details.panel:not([open]) > summary {
   color: var(--text-muted);
 }
 
+.feature-number {
+  width: 7ch;
+}
+
+.capture-power {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  text-align: center;
+}
+
 .shutter {
   position: relative;
   width: 96px;

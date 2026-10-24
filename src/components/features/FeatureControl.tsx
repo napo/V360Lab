@@ -1,8 +1,17 @@
+import { useState, type ReactNode } from "react";
 import { useCamera } from "../../hooks/useCamera";
 import { useI18n } from "../../hooks/useI18n";
 import { optionLabel } from "../../i18n/featureLabels";
 import type { CameraFeature } from "../../types/camera";
-import { featureValue, isChoice, isEditable, isToggle, optionValue } from "../../utils/features";
+import {
+  featureValue,
+  formatNumberLike,
+  isChoice,
+  isEditable,
+  isNumber,
+  isToggle,
+  optionValue,
+} from "../../utils/features";
 import { formatJsonValue } from "../../utils/format";
 
 interface FeatureControlProps {
@@ -12,7 +21,7 @@ interface FeatureControlProps {
 
 /**
  * Edits one camera feature: a select for choices, a checkbox for on/off
- * toggles, plain text otherwise. Changes are sent to the camera at once.
+ * toggles, a number field for numeric values, plain text otherwise. Changes are sent to the camera at once.
  * Locked while recording or while another change is being applied.
  */
 export function FeatureControl({ feature, disabled = false }: FeatureControlProps) {
@@ -63,5 +72,54 @@ export function FeatureControl({ feature, disabled = false }: FeatureControlProp
     );
   }
 
+  if (isNumber(feature)) {
+    return <NumberControl feature={feature} current={current} locked={locked} applying={applying} />;
+  }
+
   return <span className="mono">{formatJsonValue(feature.value)}</span>;
+}
+
+/** Sent when the field loses focus or on Enter, not at every keystroke. */
+function NumberControl({
+  feature,
+  current,
+  locked,
+  applying,
+}: {
+  feature: CameraFeature;
+  current: string | null;
+  locked: boolean;
+  applying: ReactNode;
+}) {
+  const { updateFeature } = useCamera();
+  const shown = current === null ? "" : String(Number(current));
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const commit = () => {
+    if (draft === null) return;
+    setDraft(null);
+    const value = Number(draft);
+    if (draft.trim() === "" || !Number.isFinite(value) || value < 0 || String(value) === shown) return;
+    void updateFeature(feature.key, formatNumberLike(current, value));
+  };
+
+  return (
+    <span className="feature-control">
+      <input
+        type="number"
+        inputMode="decimal"
+        min={0}
+        className="feature-number"
+        value={draft ?? shown}
+        disabled={locked}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setDraft(null);
+        }}
+      />
+      {applying}
+    </span>
+  );
 }

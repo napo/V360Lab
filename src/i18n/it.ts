@@ -548,6 +548,11 @@ export const it: Dictionary = {
   "accessory.bluetoothSensor": "Sensore Bluetooth",
   "accessory.antSensor": "Sensore ANT+",
   "capture.shutterRecord": "Avvia registrazione",
+  "capture.disconnect": "Scollega l'app",
+  "capture.disconnectConfirm":
+    "Scollegare V360Lab? La camera continua a registrare: la fermi dal pulsante della camera, oppure ricollegandoti.",
+  "capture.disconnectHint": "La registrazione continua; l'app smette di comunicare con la camera.",
+  "capture.standbyHint": "Mette la camera a riposo per risparmiare batteria. Riattivala dalla camera.",
   "capture.shutterStop": "Ferma registrazione",
   "capture.shutterPhoto": "Scatta foto",
   "capture.shutterIntervalStart": "Avvia scatti a intervalli",

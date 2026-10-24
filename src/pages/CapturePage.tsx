@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { FeatureChips } from "../components/capture/FeatureChips";
 import { ShutterButton, type ShutterKind } from "../components/capture/ShutterButton";
@@ -5,8 +6,11 @@ import { LivePreview } from "../components/preview/LivePreview";
 import type { Navigate } from "../components/navigation";
 import { useCamera } from "../hooks/useCamera";
 import { useI18n } from "../hooks/useI18n";
+import { settingsService } from "../services/settingsService";
 import { featureLabel } from "../i18n/featureLabels";
 import type { CameraAction, CameraFeature } from "../types/camera";
+import type { AppError } from "../types/errors";
+import { toAppError } from "../utils/errors";
 import { featureValue, findFeature, findFirstFeature, optionValue } from "../utils/features";
 import { connectedAccessories } from "../utils/accessories";
 import { formatBytes, formatDuration, formatPercent } from "../utils/format";
@@ -22,6 +26,8 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
   const camera = useCamera();
   const { t, lookup } = useI18n();
   const { features, status, pendingAction, intervalActive, runAction, connection } = camera;
+  const [powerBusy, setPowerBusy] = useState(false);
+  const [powerError, setPowerError] = useState<AppError | null>(null);
 
   if (connection.status !== "connected") {
     return (
@@ -83,6 +89,30 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
     .join("|");
   const modeFeature = findFeature(features, "shootingMode");
   const settingsLocked = recording || camera.pendingFeature !== null;
+
+  // While capturing, only the app lets go: standby would stop the camera.
+  const capturing = recording || intervalActive;
+  const canStandby = !capturing && camera.supports("standby");
+  const letGo = async () => {
+    const [title, message] = capturing
+      ? [t("capture.disconnect"), t("capture.disconnectConfirm")]
+      : [t("device.standby"), t("device.standbyConfirm")];
+    const confirmed = await settingsService.confirm(message, {
+      title,
+      okLabel: title,
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    setPowerBusy(true);
+    setPowerError(null);
+    try {
+      await (capturing ? camera.disconnect() : camera.standby());
+    } catch (e) {
+      setPowerError(toAppError(e));
+    } finally {
+      setPowerBusy(false);
+    }
+  };
 
   return (
     <div className="page capture-page">
@@ -148,6 +178,21 @@ export function CapturePage({ navigate }: { navigate: Navigate }) {
         <span className="shutter-label">{label}</span>
       </div>
 
+      {(capturing || canStandby) && (
+        <div className="capture-power">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={powerBusy || pendingAction !== null}
+            onClick={() => void letGo()}
+          >
+            {capturing ? t("capture.disconnect") : t("device.standby")}
+          </button>
+          <span className="muted small">{capturing ? t("capture.disconnectHint") : t("capture.standbyHint")}</span>
+        </div>
+      )}
+
+      {powerError && <ErrorBanner error={powerError} />}
       {camera.featureError && <ErrorBanner error={camera.featureError} title={t("capture.settingFailed")} />}
       {camera.actionError && <ErrorBanner error={camera.actionError} title={t("actions.failed")} />}
       {camera.statusError && <ErrorBanner error={camera.statusError} title={t("status.unavailable")} />}

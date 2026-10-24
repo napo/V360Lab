@@ -546,6 +546,11 @@ export const en = {
   "accessory.bluetoothSensor": "Bluetooth sensor",
   "accessory.antSensor": "ANT+ sensor",
   "capture.shutterRecord": "Start recording",
+  "capture.disconnect": "Disconnect the app",
+  "capture.disconnectConfirm":
+    "Disconnect V360Lab? The camera keeps recording: stop it with the camera's button, or by connecting again.",
+  "capture.disconnectHint": "The recording continues; the app stops talking to the camera.",
+  "capture.standbyHint": "Puts the camera to rest to save battery. Wake it up from the camera.",
   "capture.shutterStop": "Stop recording",
   "capture.shutterPhoto": "Take photo",
   "capture.shutterIntervalStart": "Start interval capture",
