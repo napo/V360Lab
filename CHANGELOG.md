@@ -3,6 +3,10 @@
 All notable changes to V360Lab. The release workflow publishes the section
 of the tagged version as the GitHub release notes.
 
+## Unreleased
+
+- **Website social preview**: links to the website now show a card with the logo and the app (Open Graph and Twitter card tags, 1200×630 image).
+
 ## 0.5.4
 
 - **Standby and disconnect on the capture screen**: no need to look for Standby in Advanced any more. While the camera is idle the button puts it in standby; while it records the button becomes "Disconnect the app", which lets the recording go on and only stops the app talking to the camera (standby is not offered during a recording, as it would most likely stop it).
